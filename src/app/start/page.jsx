@@ -12,6 +12,7 @@ export default function StartProcessPage() {
 
   // 컴포넌트 마운트 후 2초마다 로그 가져오기
   useEffect(() => {
+    fetchLogs(); // 초기 로그 가져오기
     const interval = setInterval(fetchLogs, 2000);
     return () => clearInterval(interval);
   }, []);
@@ -30,21 +31,19 @@ export default function StartProcessPage() {
     if (isRunning) return; // 이미 작업 중이면 무시
     setIsRunning(true); // 초록 불 ON
     setMessage("작업 시작 중...");
+    setLogContent(""); // 프론트 로그 초기화
 
     try {
+      // Step 1: Start process (which clears logs and starts automate.js)
       const response = await fetch("/api/start-process", { method: "POST" });
       const result = await response.json();
 
       if (!response.ok || !result.success) {
         setMessage(`오류 발생: ${result.message}`);
-        // 여기서 작업이 완전히 실패라면 빨간 불로 돌려도 됨
         setIsRunning(false);
       } else {
         setMessage("작업이 시작되었습니다!");
-        setLogContent(""); // 기존 로그 초기화(프론트 표시용)
-
-        // ★ 백그라운드 작업이 실제로 끝나기 전까지는 isRunning = true 유지
-        // 끝나는 시점에 setIsRunning(false)를 호출해야 빨간 불로 변경됨
+        // 로그는 자동으로 2초마다 가져와 업데이트됨
       }
     } catch (error) {
       setMessage(`에러 발생: ${error.message}`);
@@ -53,18 +52,13 @@ export default function StartProcessPage() {
   };
 
   /**
-   * (예시) "작업 중단" or "작업 종료" 버튼
-   * 실제론 automate.js가 완전히 끝난 뒤 API로 신호를 받아서 isRunning(false)로 돌리는 게 정석.
+   * "작업 중단" 버튼 클릭 시
    */
-  // StartProcessPage.jsx
-
   const handleStopProcess = async () => {
-    // (1) POST /api/stop-process
     try {
       const response = await fetch("/api/stop-process", { method: "POST" });
       const result = await response.json();
       if (result.success) {
-        // 프로세스가 실제로 중단됨
         setMessage("작업이 중단되었습니다.");
         setIsRunning(false);
       } else {
@@ -80,11 +74,14 @@ export default function StartProcessPage() {
    */
   const fetchLogs = async () => {
     try {
-      const res = await fetch("/api/automate/logs");
+      const res = await fetch(`/api/automate/logs?ts=${new Date().getTime()}`, {
+        // 캐시 방지
+        method: "GET",
+        cache: "no-store",
+      });
       const data = await res.json();
       if (data.success) {
         setLogContent(data.data);
-        // 만약 특정 키워드 "SUCCESS_COUNT"가 로그 안에 있으면 isRunning(false)로 바꿀 수도 있음
       }
     } catch (error) {
       console.error("로그 요청 에러:", error);
@@ -113,7 +110,7 @@ export default function StartProcessPage() {
         </span>
       </div>
 
-      {/* (2) "작업 시작" 버튼 + (추가) "작업 중단" 버튼 */}
+      {/* (2) "작업 시작" 버튼 + "작업 중단" 버튼 */}
       <div style={{ marginBottom: "20px" }}>
         <button
           onClick={handleStartProcess}

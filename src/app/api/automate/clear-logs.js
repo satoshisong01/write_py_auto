@@ -1,4 +1,4 @@
-// pages/api/start-process.js
+// pages/api/automate/clear-logs.js
 
 import axios from "axios";
 import { NextResponse } from "next/server";
@@ -17,8 +17,7 @@ export async function POST() {
       );
     }
 
-    // Step 1: Clear logs
-    const clearLogsResponse = await axios.post(
+    const response = await axios.post(
       `${localServerUrl}/clear-logs`,
       {},
       {
@@ -28,37 +27,22 @@ export async function POST() {
       }
     );
 
-    if (!clearLogsResponse.data.success) {
-      throw new Error(`로그 초기화 실패: ${clearLogsResponse.data.message}`);
-    }
-
-    // Step 2: Start automate.js
-    const startProcessResponse = await axios.post(
-      `${localServerUrl}/start-process`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      }
-    );
-
-    if (startProcessResponse.data.success) {
+    if (response.data.success) {
       return NextResponse.json({
         success: true,
-        message: "작업이 시작되었습니다!",
+        message: "로그가 성공적으로 초기화되었습니다.",
       });
     } else {
       return NextResponse.json(
         {
           success: false,
-          message: startProcessResponse.data.message,
+          message: response.data.message,
         },
         { status: 500 }
       );
     }
   } catch (error) {
-    console.error("작업 시작 중 오류:", error.message);
+    console.error("로그 초기화 중 오류:", error.message);
     return NextResponse.json(
       {
         success: false,
