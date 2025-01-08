@@ -1,42 +1,48 @@
-import fs from "fs";
-import path from "path";
+// src/app/api/automate/logs/route.js
+import axios from "axios";
+import { NextResponse } from "next/server";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 export async function GET() {
   try {
-    // 로그 파일 경로
-    const logFilePath = path.join(process.cwd(), "logs", "automate.log");
+    const localServerUrl = process.env.LOCAL_SERVER_URL;
+    const authToken = process.env.AUTH_TOKEN;
 
-    if (!fs.existsSync(logFilePath)) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          message: "로그 파일이 없습니다.",
-        }),
-        { status: 404 }
+    if (!localServerUrl || !authToken) {
+      throw new Error(
+        "LOCAL_SERVER_URL 또는 AUTH_TOKEN이 설정되지 않았습니다."
       );
     }
 
-    // 파일 전체 내용을 문자열로 읽기
-    const content = fs.readFileSync(logFilePath, "utf-8");
+    const response = await axios.get(`${localServerUrl}/logs`, {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+    });
 
-    return new Response(
-      JSON.stringify({
+    if (response.data.success) {
+      return NextResponse.json({
         success: true,
-        data: content,
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+        data: response.data.data,
+      });
+    } else {
+      return NextResponse.json(
+        {
+          success: false,
+          message: response.data.message,
+        },
+        { status: 500 }
+      );
+    }
   } catch (error) {
-    console.error("로그 파일 조회 에러:", error);
-    return new Response(
-      JSON.stringify({
+    console.error("로그 가져오는 중 오류:", error.message);
+    return NextResponse.json(
+      {
         success: false,
-        message: "로그 파일 조회 중 오류",
-        error: error.message,
-      }),
+        message: error.message,
+      },
       { status: 500 }
     );
   }

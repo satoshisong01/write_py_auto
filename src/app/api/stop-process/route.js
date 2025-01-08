@@ -1,32 +1,52 @@
 // src/app/api/stop-process/route.js
+import axios from "axios";
+import { NextResponse } from "next/server";
+import dotenv from "dotenv";
+
+dotenv.config();
+
 export async function POST() {
   try {
-    if (!global.childProcessRef) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          message: "실행 중인 프로세스가 없습니다.",
-        }),
-        { status: 400 }
+    const localServerUrl = process.env.LOCAL_SERVER_URL;
+    const authToken = process.env.AUTH_TOKEN;
+
+    if (!localServerUrl || !authToken) {
+      throw new Error(
+        "LOCAL_SERVER_URL 또는 AUTH_TOKEN이 설정되지 않았습니다."
       );
     }
 
-    // 실제 프로세스 종료
-    console.log("프로세스 종료를 시도합니다...");
-    global.childProcessRef.kill("SIGINT"); // 혹은 "SIGTERM" 등
-    global.childProcessRef = null; // 초기화
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "자동화 프로세스를 종료했습니다.",
-      }),
-      { status: 200 }
+    const response = await axios.post(
+      `${localServerUrl}/stop-automate`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      }
     );
+
+    if (response.data.success) {
+      return NextResponse.json({
+        success: true,
+        message: "자동화 작업이 로컬 머신에서 중단되었습니다.",
+      });
+    } else {
+      return NextResponse.json(
+        {
+          success: false,
+          message: response.data.message,
+        },
+        { status: 500 }
+      );
+    }
   } catch (error) {
-    console.error("프로세스 종료 중 오류:", error);
-    return new Response(
-      JSON.stringify({ success: false, message: error.message }),
+    console.error("자동화 작업 중단 중 오류:", error.message);
+    return NextResponse.json(
+      {
+        success: false,
+        message: error.message,
+      },
       { status: 500 }
     );
   }

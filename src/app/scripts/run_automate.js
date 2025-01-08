@@ -1,9 +1,8 @@
 // scripts/run_automate.js
 
-const { spawn } = require("child_process");
+const axios = require("axios");
 const path = require("path");
 const fs = require("fs").promises;
-const axios = require("axios");
 require("dotenv").config();
 
 /**
@@ -27,8 +26,23 @@ const loadGeminiApiKeys = async () => {
  */
 const isAllAccountsReached50 = async () => {
   try {
-    const apiBaseUrl = "http://localhost:3000";
-    const response = await axios.get(`${apiBaseUrl}/api/daily-records/fetch`);
+    const localServerUrl = process.env.LOCAL_SERVER_URL;
+    const authToken = process.env.AUTH_TOKEN;
+
+    if (!localServerUrl || !authToken) {
+      console.error("LOCAL_SERVER_URL 또는 AUTH_TOKEN이 설정되지 않았습니다.");
+      return false;
+    }
+
+    const response = await axios.get(
+      `${localServerUrl}/api/daily-records/fetch`,
+      {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      }
+    );
+
     if (!response.data.success) {
       console.error(
         "daily-records/fetch API 호출 실패:",
@@ -53,63 +67,49 @@ const isAllAccountsReached50 = async () => {
 };
 
 /**
- * automate.js 실행 함수
+ * automate.js 실행 함수 via HTTP request
  */
 const runAutomate = async (apiKeyVar) => {
-  return new Promise((resolve, reject) => {
-    const scriptPath = path.resolve(__dirname, "./automate.js");
-    const apiKey = process.env[apiKeyVar];
-    console.log(`### ${apiKeyVar} 사용: ${apiKey} ###`);
+  try {
+    const localServerUrl = process.env.LOCAL_SERVER_URL;
+    const authToken = process.env.AUTH_TOKEN;
 
-    if (!apiKey) {
-      console.error(
-        `### ${apiKeyVar}에 대한 API 키가 설정되지 않았습니다. ###`
+    if (!localServerUrl || !authToken) {
+      throw new Error(
+        "LOCAL_SERVER_URL 또는 AUTH_TOKEN이 설정되지 않았습니다."
       );
-      return reject(new Error(`API 키 없음: ${apiKeyVar}`));
     }
 
-    // 현재 프로세스의 환경 변수를 복사하고, 선택된 Gemini API 키를 추가로 세팅
-    const env = { ...process.env, GEMINI_API_KEY: apiKey };
+    console.log(`### ${apiKeyVar} 사용: ${process.env[apiKeyVar]} ###`);
 
-    const automateProcess = spawn("node", [scriptPath], {
-      env,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-
-    // stdout
-    automateProcess.stdout.on("data", (data) => {
-      console.log(`[automate.js stdout] ${data.toString()}`);
-    });
-
-    // stderr
-    automateProcess.stderr.on("data", (data) => {
-      console.error(`[automate.js stderr] ${data.toString()}`);
-    });
-
-    // 에러
-    automateProcess.on("error", (error) => {
-      console.error(
-        `automate.js 실행 중 오류 발생 (API Key: ${apiKeyVar}):`,
-        error
-      );
-      reject(error);
-    });
-
-    // 프로세스 종료
-    automateProcess.on("close", (code) => {
-      if (code === 0) {
-        console.log(
-          `automate.js가 정상적으로 종료되었습니다 (API Key: ${apiKeyVar}).`
-        );
-        resolve();
-      } else {
-        console.error(
-          `automate.js가 비정상적으로 종료되었습니다 (API Key: ${apiKeyVar}). 코드: ${code}`
-        );
-        reject(new Error(`automate.js 종료 코드: ${code}`));
+    const response = await axios.post(
+      `${localServerUrl}/start-automate`,
+      { api_key_var: apiKeyVar }, // 필요 시 추가 데이터 전송
+      {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+        timeout: 60000, // 60초 타임아웃
       }
-    });
-  });
+    );
+
+    if (response.data.success) {
+      console.log(
+        `automate.js가 성공적으로 실행되었습니다 (API Key: ${apiKeyVar}).`
+      );
+    } else {
+      console.error(
+        `automate.js 실행 실패 (API Key: ${apiKeyVar}):`,
+        response.data.message
+      );
+    }
+  } catch (error) {
+    console.error(
+      `automate.js 실행 요청 중 오류 발생 (API Key: ${apiKeyVar}):`,
+      error.message
+    );
+    throw error;
+  }
 };
 
 /**
@@ -117,23 +117,18 @@ const runAutomate = async (apiKeyVar) => {
  */
 const runAutomationPy = async () => {
   try {
-    const ngrokUrl = process.env.NGROK_URL; // e.g., https://6ac7-112-223-144-60.ngrok-free.app/crawl
-    const authToken = process.env.WEBHOOK_AUTH_TOKEN;
+    const localServerUrl = process.env.LOCAL_SERVER_URL;
+    const authToken = process.env.AUTH_TOKEN;
 
-    if (!ngrokUrl) {
-      console.error("NGROK_URL 환경 변수가 설정되지 않았습니다.");
-      throw new Error("NGROK_URL not set");
-    }
-
-    if (!authToken) {
-      console.error("WEBHOOK_AUTH_TOKEN 환경 변수가 설정되지 않았습니다.");
-      throw new Error("WEBHOOK_AUTH_TOKEN not set");
+    if (!localServerUrl || !authToken) {
+      console.error("LOCAL_SERVER_URL 또는 AUTH_TOKEN이 설정되지 않았습니다.");
+      throw new Error("LOCAL_SERVER_URL 또는 AUTH_TOKEN not set");
     }
 
     console.log("automation.py 실행을 요청합니다.");
 
     const response = await axios.post(
-      ngrokUrl,
+      `${localServerUrl}/start-automation-py`,
       {}, // 필요한 데이터가 있다면 여기에 추가
       {
         headers: {
@@ -163,12 +158,29 @@ const runAutomationPy = async () => {
  * "오늘 날짜" 기준으로 없는 username들은 post_count=0으로 추가하는 함수
  */
 const initDailyWorkRecords = async (worklist) => {
-  const apiBaseUrl = "http://localhost:3000";
   try {
-    const response = await axios.post(`${apiBaseUrl}/api/daily-records/init`, {
-      worklist,
-      api_key: process.env.API_KEY,
-    });
+    const localServerUrl = process.env.LOCAL_SERVER_URL;
+    const authToken = process.env.AUTH_TOKEN;
+
+    if (!localServerUrl || !authToken) {
+      throw new Error(
+        "LOCAL_SERVER_URL 또는 AUTH_TOKEN이 설정되지 않았습니다."
+      );
+    }
+
+    const response = await axios.post(
+      `${localServerUrl}/api/daily-records/init`,
+      {
+        worklist,
+        api_key: process.env.API_KEY,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      }
+    );
+
     if (!response.data.success) {
       throw new Error(`daily-records/init 실패: ${response.data.message}`);
     }
@@ -202,11 +214,17 @@ const main = async () => {
     console.log(`로드된 Gemini API 키 수: ${apiKeys.length}`);
 
     // (A) 먼저 worklist를 가져옴
-    const apiBaseUrl = "http://localhost:3000";
     console.log("워크리스트를 가져오는 중...");
     let worklist = null;
     try {
-      const response = await axios.get(`${apiBaseUrl}/api/worklist/fetch`);
+      const response = await axios.get(
+        `${process.env.LOCAL_SERVER_URL}/api/worklist/fetch`,
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
+          },
+        }
+      );
       if (response.data.success) {
         worklist = response.data.data;
       } else {
@@ -233,7 +251,7 @@ const main = async () => {
       }
 
       try {
-        // 실제로 automate.js 실행
+        // 실제로 automate.js 실행 via HTTP 요청
         await runAutomate(apiKeyVar);
       } catch (error) {
         console.error(
@@ -260,7 +278,14 @@ const main = async () => {
     console.log("워크리스트를 다시 가져오는 중...");
     let worklist2 = null;
     try {
-      const response = await axios.get(`${apiBaseUrl}/api/worklist/fetch`);
+      const response = await axios.get(
+        `${process.env.LOCAL_SERVER_URL}/api/worklist/fetch`,
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
+          },
+        }
+      );
       if (response.data.success) {
         worklist2 = response.data.data;
       } else {
