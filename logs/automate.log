@@ -1,0 +1,51 @@
+run_automate.js 실행 시작
+로드된 Gemini API 키 수: 15
+워크리스트를 가져오는 중...
+### daily-records가 정상적으로 초기화되었습니다. ###
+### GEMINI_API_KEY1 사용: AIzaSyB27A9DfDWYUlikRogir9LhD9Nur58o4nY ###
+[automate.js stdout] ### 콘텐츠 생성 시작 ###
+
+[automate.js stdout] 워프 목록 가져오는 중...
+
+[automate.js stdout] 가져온 워프 계정: 4개
+
+[automate.js stdout] 현재 각 계정의 post_count를 가져오는 중...
+
+[automate.js stdout] 현재 post_count를 성공적으로 가져왔습니다.
+
+[automate.js stdout] 선택된 Gemini API 키: GEMINI_API_KEY1
+
+[automate.js stdout] 키워드 전체 목록 가져오는 중...
+
+[automate.js stdout] 총 목표 게시물 수: 200
+
+[automate.js stdout] 
+### 워프 작업 시작: fpemshop ###
+
+[automate.js stdout] 
+### 워프 작업 시작: fha7843f ###
+
+[automate.js stdout] 
+### [fha7843f][가지 토마토] ###
+[fha7843f][가지 토마토] Gemini API로 콘텐츠 생성 중...
+
+[automate.js stdout] 
+### 워프 작업 시작: gkdidshop ###
+
+[automate.js stdout] 
+### [gkdidshop][강아지수제간식 애견 닭가슴살 대형견간식] ###
+
+[automate.js stdout] [gkdidshop][강아지수제간식 애견 닭가슴살 대형견간식] Gemini API로 콘텐츠 생성 중...
+
+[automate.js stdout] 
+### 워프 작업 시작: ahd8f ###
+
+[automate.js stdout] 
+### [ahd8f][간장 냉장보관] ###
+
+[automate.js stdout] [ahd8f][간장 냉장보관] Gemini API로 콘텐츠 생성 중...
+
+[automate.js stdout] 
+### [fpemshop][간장 장기] ###
+[fpemshop][간장 장기] Gemini API로 콘텐츠 생성 중...
+
