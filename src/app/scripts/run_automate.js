@@ -113,41 +113,49 @@ const runAutomate = async (apiKeyVar) => {
 };
 
 /**
- * automation.py 실행 함수
+ * automation.py 실행 함수 via HTTP request
  */
 const runAutomationPy = async () => {
-  return new Promise((resolve, reject) => {
-    const scriptPath = path.resolve(__dirname, "./automation.py");
-    console.log("DEBUG: automation.py path = ", scriptPath);
-    const dataFilePath = path.resolve(__dirname, "./worklist.json");
-    console.log("DEBUG: dataFilePath = ", dataFilePath);
+  try {
+    const ngrokUrl = process.env.NGROK_URL; // e.g., https://6ac7-112-223-144-60.ngrok-free.app/crawl
+    const authToken = process.env.WEBHOOK_AUTH_TOKEN;
 
-    console.log(`### automation.py 실행 시작 ###`);
-    console.log(`### scriptPath: ${scriptPath} ###`);
-    console.log(`### dataFilePath: ${dataFilePath} ###`);
+    if (!ngrokUrl) {
+      console.error("NGROK_URL 환경 변수가 설정되지 않았습니다.");
+      throw new Error("NGROK_URL not set");
+    }
 
-    const pythonProcess = spawn("python", [scriptPath, dataFilePath], {
-      cwd: path.resolve(__dirname),
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    if (!authToken) {
+      console.error("WEBHOOK_AUTH_TOKEN 환경 변수가 설정되지 않았습니다.");
+      throw new Error("WEBHOOK_AUTH_TOKEN not set");
+    }
 
-    pythonProcess.on("error", (error) => {
-      console.error("automation.py 실행 중 오류 발생:", error);
-      reject(error);
-    });
+    console.log("automation.py 실행을 요청합니다.");
 
-    pythonProcess.on("close", (code) => {
-      if (code === 0) {
-        console.log("automation.py가 정상적으로 종료되었습니다.");
-        resolve();
-      } else {
-        console.error(
-          `automation.py가 비정상적으로 종료되었습니다. 코드: ${code}`
-        );
-        reject(new Error(`automation.py 종료 코드: ${code}`));
+    const response = await axios.post(
+      ngrokUrl,
+      {}, // 필요한 데이터가 있다면 여기에 추가
+      {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 60000, // 60초 타임아웃
       }
-    });
-  });
+    );
+
+    if (response.data.success) {
+      console.log("automation.py가 성공적으로 실행되었습니다.");
+    } else {
+      console.error("automation.py 실행 실패:", response.data.message);
+      if (response.data.error) {
+        console.error("오류 내용:", response.data.error);
+      }
+    }
+  } catch (error) {
+    console.error("automation.py 실행 요청 중 오류 발생:", error.message);
+    throw error;
+  }
 };
 
 /**
@@ -248,7 +256,7 @@ const main = async () => {
 
     console.log("모든 automate.js 작업을 마쳤거나, 중간에 중단되었습니다.");
 
-    // 3. worklist.json을 만들어 automation.py 실행
+    // 3. worklist.json을 만들어 automation.py 실행 via HTTP
     console.log("워크리스트를 다시 가져오는 중...");
     let worklist2 = null;
     try {
