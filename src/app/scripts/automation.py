@@ -233,7 +233,6 @@ def start_automation(driver, urls, set_num):
             elif alert_result in ("handled", "none"):
                 # 알림창이 없거나, 그냥 닫고 넘어갈 수 있는 경우
                 # => 여기서 '정상 처리'로 보고 DB 업데이트
-                #    py_date, py_mark='O' 로 set
                 py_date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 payload = {
                     "link": url,
@@ -241,7 +240,6 @@ def start_automation(driver, urls, set_num):
                     "py_mark": "O"
                 }
                 try:
-                    # 서버 주소 (예: localhost:3000)
                     api_url = "http://localhost:3000/api/posts/updatePyMark"
                     r = requests.post(api_url, json=payload, timeout=10)
                     if r.status_code == 200 and r.json().get("success"):
@@ -266,7 +264,7 @@ def start_automation(driver, urls, set_num):
     return "ok"
 
 ################################################################################
-# 세트별로 브라우저를 열고 작업 -> flymode.py 실행 -> 다음 세트
+# 세트별로 브라우저를 열고 작업 -> 다음 세트
 ################################################################################
 
 def process_all_sets():
@@ -335,29 +333,7 @@ def process_all_sets():
         driver.quit()
         logging.info(f"세트 {set_num + 1}: 작업 완료 후 브라우저 닫기")
 
-        # ------------------------------------------------------------------
-        # 1) 만약 exceed_flag가 True면 flymode 실행하고 -> 다음 세트로 넘어감
-        # 2) 아니면 원래대로 flymode 실행하고 다음 세트 이동
-        #    (원하시는 대로 조정 가능: "exceed 때만 flymode" or "매번 flymode")
-        # ------------------------------------------------------------------
-        if exceed_flag:
-            logging.info(f"세트 {set_num + 1}: 일간 요청 초과 -> flymode.py 실행 후 다음 세트로 이동")
-        else:
-            logging.info(f"세트 {set_num + 1}: 정상 종료 -> flymode.py 실행 후 다음 세트로 이동")
-
-        # flymode.py 실행
-        python_exe = sys.executable
-        script_path = os.path.join(os.path.dirname(__file__), "flymode.py")
-
-        try:
-            logging.info(f"세트 {set_num + 1}: flymode.py 실행 시작")
-            subprocess.run([python_exe, script_path], check=True)
-            logging.info(f"세트 {set_num + 1}: flymode.py 실행 완료")
-        except subprocess.CalledProcessError as e:
-            logging.error(f"flymode.py 실행 중 오류 발생 (세트 {set_num + 1}): {e}")
-            # 여기서도 만약 에러 시 중단할지 말지 결정 가능
-
-        # → 'exceed_flag == True' 라도 여기서 다음 세트로 자연히 넘어감
+        # flymode.py 관련 로직 제거 (아래 부분 삭제)
 
     logging.info("모든 세트의 작업이 완료되었습니다.")
 
