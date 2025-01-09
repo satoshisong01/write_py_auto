@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import pLimit from "p-limit"; // p-limit 라이브러리 추가
 
 // 날짜 필터링을 위한 날짜 선택 컴포넌트
 function DateFilter({ label, selectedDate, setSelectedDate, dateOptions }) {
@@ -64,15 +65,17 @@ export default function CompletedKeywordsPage() {
         setCompletedKeywords(data.data || []);
       } else {
         console.error("데이터 가져오기 실패:", data.message);
+        setMessage("데이터를 가져오는데 실패했습니다.");
       }
     } catch (error) {
       console.error("API 요청 에러:", error);
+      setMessage("데이터를 가져오는데 에러가 발생했습니다.");
     }
   };
 
-  // 2) 색인확인하기: 각 title로 검색 -> naver_mark = "O" or "X" -> DB 업데이트 -> state 반영
+  // 2) 색인확인하기: 필터링된 데이터만 검색 -> naver_mark = "O" or "X" -> DB 업데이트 -> state 반영
   const handleNaverIndexCheck = async () => {
-    if (!completedKeywords.length) {
+    if (!filteredKeywords.length) {
       alert("확인할 데이터가 없습니다.");
       return;
     }
@@ -81,45 +84,72 @@ export default function CompletedKeywordsPage() {
     setMessage("색인 확인 중... 잠시만 기다려주세요.");
 
     const updatedItems = [];
+    const concurrencyLimit = 5; // 동시에 처리할 요청 수 제한
+    const limit = pLimit(concurrencyLimit); // p-limit을 사용하여 동시 요청 제한 설정
 
     try {
-      for (const item of completedKeywords) {
-        // title이 없으면 바로 X 처리
-        if (!item.title) {
-          await updateNaverMark(item.link, "X");
-          updatedItems.push({ ...item, naver_mark: "X" });
-          continue;
-        }
+      const promises = filteredKeywords.map((item) =>
+        limit(async () => {
+          // title이 없으면 바로 X 처리
+          if (!item.title) {
+            await updateNaverMark(item.link, "X");
+            return { ...item, naver_mark: "X" };
+          }
 
-        // 네이버 검색 API 호출
-        const res = await fetch(
-          `/api/search-naver?query=${encodeURIComponent(item.title)}`
-        );
-        const data = await res.json();
-
-        // 검색 결과에 title이 포함되는지 여부
-        let isIncluded = false;
-        if (data.items && data.items.length > 0) {
-          isIncluded = data.items.some((searchItem) =>
-            searchItem.title.replace(/<[^>]+>/g, "").includes(item.title)
+          // 네이버 검색 API 호출 (결과 제한 100개)
+          const res = await fetch(
+            `/api/search-naver?query=${encodeURIComponent(
+              item.title
+            )}&limit=100`
           );
+          const data = await res.json();
+
+          // 검색 결과에 title이 포함되는지 여부
+          let isIncluded = false;
+          if (data.items && data.items.length > 0) {
+            isIncluded = data.items.some((searchItem) =>
+              searchItem.title.replace(/<[^>]+>/g, "").includes(item.title)
+            );
+          }
+
+          const markValue = isIncluded ? "O" : "X";
+
+          // DB 업데이트 -> updateNaverMark
+          await updateNaverMark(item.link, markValue);
+
+          return { ...item, naver_mark: markValue };
+        })
+      );
+
+      const results = await Promise.allSettled(promises);
+      results.forEach((result, idx) => {
+        if (result.status === "fulfilled") {
+          updatedItems.push(result.value);
+        } else {
+          console.error(
+            "개별 요청 실패:",
+            filteredKeywords[idx],
+            result.reason
+          );
+          // 실패한 경우 원래 아이템을 유지하거나 필요한 처리를 추가할 수 있습니다.
+          updatedItems.push(filteredKeywords[idx]);
         }
-
-        const markValue = isIncluded ? "O" : "X";
-
-        // DB 업데이트 -> updateNaverMark
-        await updateNaverMark(item.link, markValue);
-
-        // 로컬 state에서 갱신
-        updatedItems.push({ ...item, naver_mark: markValue });
-      }
+      });
 
       // 모두 처리 후 state 갱신
-      setCompletedKeywords(updatedItems);
+      setCompletedKeywords((prev) =>
+        prev.map((item) => {
+          const updated = updatedItems.find((u) => u.id === item.id);
+          return updated ? updated : item;
+        })
+      );
+      setFilteredKeywords(updatedItems); // 필터링된 데이터도 갱신
       setMessage("색인 확인이 완료되었습니다.");
+      alert("색인 확인이 완료되었습니다.");
     } catch (error) {
       console.error("색인 확인 중 에러:", error);
       setMessage(`오류 발생: ${error.message}`);
+      alert(`오류 발생: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -135,6 +165,7 @@ export default function CompletedKeywordsPage() {
       });
       const data = await res.json();
       if (!data.success) {
+        console.log("data", data);
         console.error("DB 업데이트 실패:", data.message);
       }
     } catch (error) {
@@ -175,9 +206,9 @@ export default function CompletedKeywordsPage() {
   };
 
   // 정렬 적용 함수
-  const applySort = () => {
+  const applySort = (dataToSort = filteredKeywords) => {
     const { key, direction } = sortConfig;
-    const sortedData = [...filteredKeywords].sort((a, b) => {
+    const sortedData = [...dataToSort].sort((a, b) => {
       // null 또는 undefined 처리
       if (!a[key]) return 1;
       if (!b[key]) return -1;
@@ -230,7 +261,7 @@ export default function CompletedKeywordsPage() {
 
     // 정렬 상태가 설정되어 있으면 정렬 적용
     if (sortConfig.key) {
-      applySort();
+      applySort(filtered);
     }
   };
 

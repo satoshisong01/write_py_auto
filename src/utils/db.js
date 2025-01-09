@@ -12,6 +12,9 @@ const db = mysql.createPool({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   port: process.env.DB_PORT,
+  waitForConnections: true,
+  connectionLimit: 10, // 연결 풀의 최대 연결 수
+  queueLimit: 0,
 });
 
 (async () => {

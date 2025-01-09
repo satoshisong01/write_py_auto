@@ -1,3 +1,4 @@
+// /api/posts/updateNaverMark
 import db from "@/utils/db";
 
 export async function POST(request) {

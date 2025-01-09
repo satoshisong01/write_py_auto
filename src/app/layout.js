@@ -72,6 +72,22 @@ export default function RootLayout({ children }) {
               </li>
               <li style={{ marginBottom: "15px" }}>
                 <Link
+                  href="/naver-check"
+                  style={{
+                    textDecoration: "none",
+                    color: "#ecf0f1",
+                    display: "block",
+                    padding: "10px 15px",
+                    borderRadius: "5px",
+                    backgroundColor: "#34495e",
+                    textAlign: "center",
+                  }}
+                >
+                  색인확인
+                </Link>
+              </li>
+              <li style={{ marginBottom: "15px" }}>
+                <Link
                   href="/prompt-status"
                   style={{
                     textDecoration: "none",
