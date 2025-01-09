@@ -8,6 +8,7 @@ export default function CompletedKeywordsPage() {
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: "", direction: "asc" }); // 정렬 상태
 
   // 페이지 당 표시할 아이템 수
   const itemsPerPage = 100;
@@ -112,6 +113,51 @@ export default function CompletedKeywordsPage() {
     });
   };
 
+  // 전체 선택/해제 핸들러
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      // 현재 페이지 항목만 모두 추가
+      const allIds = currentItems.map((item) => item.id);
+      setSelectedItems(new Set(allIds));
+    } else {
+      // 현재 페이지 항목만 제거
+      const newSet = new Set(selectedItems);
+      currentItems.forEach((item) => newSet.delete(item.id));
+      setSelectedItems(newSet);
+    }
+  };
+
+  // 정렬 함수
+  const handleSort = (key) => {
+    let direction = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc";
+    }
+    setSortConfig({ key, direction });
+
+    const sortedData = [...completedKeywords].sort((a, b) => {
+      // null 또는 undefined 처리
+      if (!a[key]) return 1;
+      if (!b[key]) return -1;
+
+      // 날짜 필드인 경우 Date 객체로 비교
+      if (key === "write_date" || key === "py_date") {
+        const dateA = new Date(a[key]);
+        const dateB = new Date(b[key]);
+        if (dateA < dateB) return direction === "asc" ? -1 : 1;
+        if (dateA > dateB) return direction === "asc" ? 1 : -1;
+        return 0;
+      }
+
+      // 문자열 또는 숫자 필드 비교
+      if (a[key] < b[key]) return direction === "asc" ? -1 : 1;
+      if (a[key] > b[key]) return direction === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    setCompletedKeywords(sortedData);
+  };
+
   // 현재 페이지에 해당하는 아이템만 잘라서 보여줌
   const currentItems = completedKeywords.slice(
     (currentPage - 1) * itemsPerPage,
@@ -187,33 +233,79 @@ export default function CompletedKeywordsPage() {
             <th style={{ border: "1px solid #ddd", padding: "8px" }}>
               <input
                 type="checkbox"
-                onChange={(e) => {
-                  // 전체 선택/해제
-                  if (e.target.checked) {
-                    // 현재 페이지 항목만 모두 추가
-                    const allIds = currentItems.map((item) => item.id);
-                    setSelectedItems(new Set(allIds));
-                  } else {
-                    // 현재 페이지 항목만 제거
-                    const newSet = new Set(selectedItems);
-                    currentItems.forEach((item) => newSet.delete(item.id));
-                    setSelectedItems(newSet);
-                  }
-                }}
+                onChange={handleSelectAll}
                 checked={
                   currentItems.length > 0 &&
                   currentItems.every((item) => selectedItems.has(item.id))
                 }
               />
             </th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>
-              사용된 키워드
+            {/* 정렬 가능한 헤더 */}
+            <th
+              style={{
+                border: "1px solid #ddd",
+                padding: "8px",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+              onClick={() => handleSort("used_keyword")}
+            >
+              사용된 키워드{" "}
+              {sortConfig.key === "used_keyword"
+                ? sortConfig.direction === "asc"
+                  ? "▲"
+                  : "▼"
+                : ""}
             </th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>글제목</th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>
-              글쓴시간
+            <th
+              style={{
+                border: "1px solid #ddd",
+                padding: "8px",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+              onClick={() => handleSort("title")}
+            >
+              글제목{" "}
+              {sortConfig.key === "title"
+                ? sortConfig.direction === "asc"
+                  ? "▲"
+                  : "▼"
+                : ""}
             </th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>아이디</th>
+            <th
+              style={{
+                border: "1px solid #ddd",
+                padding: "8px",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+              onClick={() => handleSort("write_date")}
+            >
+              글쓴시간{" "}
+              {sortConfig.key === "write_date"
+                ? sortConfig.direction === "asc"
+                  ? "▲"
+                  : "▼"
+                : ""}
+            </th>
+            <th
+              style={{
+                border: "1px solid #ddd",
+                padding: "8px",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+              onClick={() => handleSort("username")}
+            >
+              아이디{" "}
+              {sortConfig.key === "username"
+                ? sortConfig.direction === "asc"
+                  ? "▲"
+                  : "▼"
+                : ""}
+            </th>
+            {/* 정렬 불필요한 헤더 */}
             <th style={{ border: "1px solid #ddd", padding: "8px" }}>주소</th>
             <th style={{ border: "1px solid #ddd", padding: "8px" }}>글쓰기</th>
             <th style={{ border: "1px solid #ddd", padding: "8px" }}>
