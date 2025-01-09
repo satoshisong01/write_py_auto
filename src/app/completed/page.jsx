@@ -1,14 +1,40 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+
+// 날짜 필터링을 위한 날짜 선택 컴포넌트
+function DateFilter({ label, selectedDate, setSelectedDate, dateOptions }) {
+  return (
+    <div style={{ marginBottom: "10px" }}>
+      <label style={{ marginRight: "10px", fontWeight: "bold" }}>
+        {label}:
+      </label>
+      <select
+        value={selectedDate}
+        onChange={(e) => setSelectedDate(e.target.value)}
+        style={{ padding: "5px" }}
+      >
+        <option value="">전체</option>
+        {dateOptions.map((date) => (
+          <option key={date} value={date}>
+            {date}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
 
 export default function CompletedKeywordsPage() {
-  const [completedKeywords, setCompletedKeywords] = useState([]); // 목록
+  const [completedKeywords, setCompletedKeywords] = useState([]); // 전체 목록
+  const [filteredKeywords, setFilteredKeywords] = useState([]); // 필터링된 목록
   const [message, setMessage] = useState("");
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: "", direction: "asc" }); // 정렬 상태
+  const [writeDateFilter, setWriteDateFilter] = useState(""); // 글쓴시간 필터
+  const [collectDateFilter, setCollectDateFilter] = useState(""); // 수집요청시간 필터 (mapped to py_date)
 
   // 페이지 당 표시할 아이템 수
   const itemsPerPage = 100;
@@ -17,6 +43,18 @@ export default function CompletedKeywordsPage() {
   useEffect(() => {
     fetchCompletedKeywords();
   }, []);
+
+  // 필터 및 정렬 적용
+  useEffect(() => {
+    applyFilters();
+  }, [completedKeywords, writeDateFilter, collectDateFilter]);
+
+  useEffect(() => {
+    if (sortConfig.key) {
+      applySort();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortConfig]);
 
   const fetchCompletedKeywords = async () => {
     try {
@@ -118,7 +156,7 @@ export default function CompletedKeywordsPage() {
     if (e.target.checked) {
       // 현재 페이지 항목만 모두 추가
       const allIds = currentItems.map((item) => item.id);
-      setSelectedItems(new Set(allIds));
+      setSelectedItems(new Set([...selectedItems, ...allIds]));
     } else {
       // 현재 페이지 항목만 제거
       const newSet = new Set(selectedItems);
@@ -134,14 +172,22 @@ export default function CompletedKeywordsPage() {
       direction = "desc";
     }
     setSortConfig({ key, direction });
+  };
 
-    const sortedData = [...completedKeywords].sort((a, b) => {
+  // 정렬 적용 함수
+  const applySort = () => {
+    const { key, direction } = sortConfig;
+    const sortedData = [...filteredKeywords].sort((a, b) => {
       // null 또는 undefined 처리
       if (!a[key]) return 1;
       if (!b[key]) return -1;
 
       // 날짜 필드인 경우 Date 객체로 비교
-      if (key === "write_date" || key === "py_date") {
+      if (
+        key === "write_date" ||
+        key === "collect_request_time" ||
+        key === "py_date"
+      ) {
         const dateA = new Date(a[key]);
         const dateB = new Date(b[key]);
         if (dateA < dateB) return direction === "asc" ? -1 : 1;
@@ -155,14 +201,66 @@ export default function CompletedKeywordsPage() {
       return 0;
     });
 
-    setCompletedKeywords(sortedData);
+    setFilteredKeywords(sortedData);
   };
 
+  // 필터 적용 함수
+  const applyFilters = () => {
+    let filtered = [...completedKeywords];
+
+    // 글쓴시간 필터링
+    if (writeDateFilter) {
+      filtered = filtered.filter((item) => {
+        if (!item.write_date) return false;
+        const itemDate = new Date(item.write_date).toISOString().split("T")[0];
+        return itemDate === writeDateFilter;
+      });
+    }
+
+    // 수집요청시간 필터링 (mapped to py_date)
+    if (collectDateFilter) {
+      filtered = filtered.filter((item) => {
+        if (!item.py_date) return false;
+        const itemDate = new Date(item.py_date).toISOString().split("T")[0];
+        return itemDate === collectDateFilter;
+      });
+    }
+
+    setFilteredKeywords(filtered);
+
+    // 정렬 상태가 설정되어 있으면 정렬 적용
+    if (sortConfig.key) {
+      applySort();
+    }
+  };
+
+  // 고유한 날짜 리스트 생성 (useMemo를 사용하여 최적화)
+  const writeDateOptions = useMemo(() => {
+    const dates = completedKeywords
+      .map((item) =>
+        item.write_date
+          ? new Date(item.write_date).toISOString().split("T")[0]
+          : null
+      )
+      .filter((date) => date !== null);
+    return Array.from(new Set(dates)).sort((a, b) => new Date(b) - new Date(a));
+  }, [completedKeywords]);
+
+  const collectDateOptions = useMemo(() => {
+    const dates = completedKeywords
+      .map((item) =>
+        item.py_date ? new Date(item.py_date).toISOString().split("T")[0] : null
+      )
+      .filter((date) => date !== null);
+    return Array.from(new Set(dates)).sort((a, b) => new Date(b) - new Date(a));
+  }, [completedKeywords]);
+
   // 현재 페이지에 해당하는 아이템만 잘라서 보여줌
-  const currentItems = completedKeywords.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const currentItems = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = currentPage * itemsPerPage;
+    return filteredKeywords.slice(start, end);
+  }, [filteredKeywords, currentPage, itemsPerPage]);
 
   // 날짜+시간 포맷 함수
   function formatDateTime(dateString) {
@@ -195,11 +293,11 @@ export default function CompletedKeywordsPage() {
         완료 키워드
       </h1>
 
-      <h1
+      <h2
         style={{ marginBottom: "10px", fontSize: "18px", fontWeight: "bold" }}
       >
         완료 키워드 ({completedKeywords.length}개)
-      </h1>
+      </h2>
 
       {/* 색인확인하기 버튼 */}
       <button
@@ -225,6 +323,22 @@ export default function CompletedKeywordsPage() {
           {message}
         </div>
       )}
+
+      {/* 날짜 필터링 컴포넌트 */}
+      <div style={{ display: "flex", gap: "20px", marginBottom: "20px" }}>
+        <DateFilter
+          label="글쓴시간"
+          selectedDate={writeDateFilter}
+          setSelectedDate={setWriteDateFilter}
+          dateOptions={writeDateOptions}
+        />
+        <DateFilter
+          label="수집요청시간"
+          selectedDate={collectDateFilter}
+          setSelectedDate={setCollectDateFilter}
+          dateOptions={collectDateOptions}
+        />
+      </div>
 
       {/* 테이블 */}
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -305,17 +419,87 @@ export default function CompletedKeywordsPage() {
                   : "▼"
                 : ""}
             </th>
-            {/* 정렬 불필요한 헤더 */}
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>주소</th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>글쓰기</th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>
-              수집요청시간
+            {/* 정렬 가능한 추가 헤더 */}
+            <th
+              style={{
+                border: "1px solid #ddd",
+                padding: "8px",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+              onClick={() => handleSort("link")}
+            >
+              주소{" "}
+              {sortConfig.key === "link"
+                ? sortConfig.direction === "asc"
+                  ? "▲"
+                  : "▼"
+                : ""}
             </th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>
-              수집요청
+            <th
+              style={{
+                border: "1px solid #ddd",
+                padding: "8px",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+              onClick={() => handleSort("write_mark")}
+            >
+              글쓰기{" "}
+              {sortConfig.key === "write_mark"
+                ? sortConfig.direction === "asc"
+                  ? "▲"
+                  : "▼"
+                : ""}
             </th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>
-              색인확인
+            {/* 수집요청시간 및 수집요청 헤더 수정 */}
+            <th
+              style={{
+                border: "1px solid #ddd",
+                padding: "8px",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+              onClick={() => handleSort("py_date")}
+            >
+              수집요청시간{" "}
+              {sortConfig.key === "py_date"
+                ? sortConfig.direction === "asc"
+                  ? "▲"
+                  : "▼"
+                : ""}
+            </th>
+            <th
+              style={{
+                border: "1px solid #ddd",
+                padding: "8px",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+              onClick={() => handleSort("py_mark")}
+            >
+              수집요청{" "}
+              {sortConfig.key === "py_mark"
+                ? sortConfig.direction === "asc"
+                  ? "▲"
+                  : "▼"
+                : ""}
+            </th>
+            <th
+              style={{
+                border: "1px solid #ddd",
+                padding: "8px",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+              onClick={() => handleSort("naver_mark")}
+            >
+              색인확인{" "}
+              {sortConfig.key === "naver_mark"
+                ? sortConfig.direction === "asc"
+                  ? "▲"
+                  : "▼"
+                : ""}
             </th>
           </tr>
         </thead>
@@ -358,6 +542,7 @@ export default function CompletedKeywordsPage() {
               <td style={{ border: "1px solid #ddd", padding: "8px" }}>
                 {item.write_mark || ""}
               </td>
+              {/* 수집요청시간 및 수집요청 데이터 표시 */}
               <td style={{ border: "1px solid #ddd", padding: "8px" }}>
                 {item.py_date ? formatDateTime(item.py_date) : ""}
               </td>
@@ -375,7 +560,7 @@ export default function CompletedKeywordsPage() {
       {/* 페이지네이션 */}
       <div style={{ marginTop: "20px", textAlign: "center" }}>
         {Array.from(
-          { length: Math.ceil(completedKeywords.length / itemsPerPage) },
+          { length: Math.ceil(filteredKeywords.length / itemsPerPage) },
           (_, i) => (
             <button
               key={i}
