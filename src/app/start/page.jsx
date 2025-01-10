@@ -13,7 +13,7 @@ export default function StartProcessPage() {
   // 컴포넌트 마운트 후 2초마다 로그 가져오기
   useEffect(() => {
     fetchLogs(); // 초기 로그 가져오기
-    const interval = setInterval(fetchLogs, 2000);
+    const interval = setInterval(fetchLogs, 20000);
     return () => clearInterval(interval);
   }, []);
 

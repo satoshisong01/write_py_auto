@@ -12,7 +12,7 @@ export default function AutomateLogsPage() {
     // 2) 페이지 로드 후 주기적으로 로그를 fetch
     const interval = setInterval(() => {
       fetchLogs();
-    }, 2000);
+    }, 20000);
 
     return () => clearInterval(interval);
   }, []);
