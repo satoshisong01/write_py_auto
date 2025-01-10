@@ -1,52 +1,53 @@
-// pages/api/automate/clear-logs.js
+// app/api/automate/clear-logs.js
 
-import axios from "axios";
 import { NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-export async function POST() {
-  try {
-    const localServerUrl = process.env.LOCAL_SERVER_URL;
-    const authToken = process.env.AUTH_TOKEN;
+/**
+ * 인증 검증 함수
+ */
+const verifyAuth = (request) => {
+  const authHeader = request.headers.get("Authorization");
+  const token = process.env.AUTH_TOKEN;
 
-    if (!localServerUrl || !authToken) {
-      throw new Error(
-        "LOCAL_SERVER_URL 또는 AUTH_TOKEN이 설정되지 않았습니다."
-      );
-    }
+  if (!authHeader || authHeader !== `Bearer ${token}`) {
+    return false;
+  }
+  return true;
+};
 
-    const response = await axios.post(
-      `${localServerUrl}/clear-logs`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      }
+export async function POST(request) {
+  // 인증 검증
+  if (!verifyAuth(request)) {
+    return NextResponse.json(
+      { success: false, message: "Unauthorized" },
+      { status: 401 }
     );
+  }
 
-    if (response.data.success) {
-      return NextResponse.json({
-        success: true,
-        message: "로그가 성공적으로 초기화되었습니다.",
-      });
-    } else {
-      return NextResponse.json(
-        {
-          success: false,
-          message: response.data.message,
-        },
-        { status: 500 }
-      );
-    }
+  try {
+    // 로그 파일 경로 설정
+    const logFilePath = path.join(process.cwd(), "automate.log");
+
+    // 로그 파일 초기화
+    fs.writeFileSync(logFilePath, "");
+    console.log("로그가 성공적으로 초기화되었습니다.");
+
+    return NextResponse.json(
+      { success: true, message: "로그가 성공적으로 초기화되었습니다." },
+      { status: 200 }
+    );
   } catch (error) {
-    console.error("로그 초기화 중 오류:", error.message);
+    console.error("로그 초기화 중 오류:", error);
     return NextResponse.json(
       {
         success: false,
-        message: error.message,
+        message: "로그 초기화 실패.",
+        error: error.message,
       },
       { status: 500 }
     );

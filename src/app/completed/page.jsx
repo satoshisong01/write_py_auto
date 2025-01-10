@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import pLimit from "p-limit"; // p-limit 라이브러리 추가
+import pLimit from "p-limit"; // p-limit 라이브러리
 
 // 날짜 필터링을 위한 날짜 선택 컴포넌트
 function DateFilter({ label, selectedDate, setSelectedDate, dateOptions }) {
@@ -35,7 +35,7 @@ export default function CompletedKeywordsPage() {
   const [loading, setLoading] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: "", direction: "asc" }); // 정렬 상태
   const [writeDateFilter, setWriteDateFilter] = useState(""); // 글쓴시간 필터
-  const [collectDateFilter, setCollectDateFilter] = useState(""); // 수집요청시간 필터 (mapped to py_date)
+  const [collectDateFilter, setCollectDateFilter] = useState(""); // 수집요청시간 필터 (py_date)
 
   // 페이지 당 표시할 아이템 수
   const itemsPerPage = 100;
@@ -57,9 +57,10 @@ export default function CompletedKeywordsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortConfig]);
 
+  // (A) DB에서 전체 목록 가져오기
   const fetchCompletedKeywords = async () => {
     try {
-      const res = await fetch("/api/posts/fetch"); // DB에서 전체 목록 가져오기
+      const res = await fetch("/api/posts/fetch"); // DB에서 전체 목록
       const data = await res.json();
       if (data.success) {
         setCompletedKeywords(data.data || []);
@@ -73,9 +74,11 @@ export default function CompletedKeywordsPage() {
     }
   };
 
-  // 2) 색인확인하기: 필터링된 데이터만 검색 -> naver_mark = "O" or "X" -> DB 업데이트 -> state 반영
-  const handleNaverIndexCheck = async () => {
-    if (!filteredKeywords.length) {
+  // (B) 색인 확인 로직을 별도 함수로 분리
+  //     itemsToCheck: 검사 대상 아이템 배열
+  //     -> 네이버 검색 API 호출 -> DB 업데이트 -> state 반영
+  const checkNaverIndex = async (itemsToCheck) => {
+    if (!itemsToCheck.length) {
       alert("확인할 데이터가 없습니다.");
       return;
     }
@@ -85,10 +88,10 @@ export default function CompletedKeywordsPage() {
 
     const updatedItems = [];
     const concurrencyLimit = 5; // 동시에 처리할 요청 수 제한
-    const limit = pLimit(concurrencyLimit); // p-limit을 사용하여 동시 요청 제한 설정
+    const limit = pLimit(concurrencyLimit);
 
     try {
-      const promises = filteredKeywords.map((item) =>
+      const promises = itemsToCheck.map((item) =>
         limit(async () => {
           // title이 없으면 바로 X 처리
           if (!item.title) {
@@ -104,7 +107,7 @@ export default function CompletedKeywordsPage() {
           );
           const data = await res.json();
 
-          // 검색 결과에 title이 포함되는지 여부
+          // 검색 결과에 item.title이 들어있는지 여부
           let isIncluded = false;
           if (data.items && data.items.length > 0) {
             isIncluded = data.items.some((searchItem) =>
@@ -114,36 +117,42 @@ export default function CompletedKeywordsPage() {
 
           const markValue = isIncluded ? "O" : "X";
 
-          // DB 업데이트 -> updateNaverMark
+          // DB에 naver_mark 업데이트
           await updateNaverMark(item.link, markValue);
 
           return { ...item, naver_mark: markValue };
         })
       );
 
+      // 모든 요청 병렬 처리 후 결과 수집
       const results = await Promise.allSettled(promises);
       results.forEach((result, idx) => {
         if (result.status === "fulfilled") {
           updatedItems.push(result.value);
         } else {
-          console.error(
-            "개별 요청 실패:",
-            filteredKeywords[idx],
-            result.reason
-          );
-          // 실패한 경우 원래 아이템을 유지하거나 필요한 처리를 추가할 수 있습니다.
-          updatedItems.push(filteredKeywords[idx]);
+          console.error("개별 요청 실패:", itemsToCheck[idx], result.reason);
+          // 실패한 경우 원래 아이템 그대로 유지
+          updatedItems.push(itemsToCheck[idx]);
         }
       });
 
-      // 모두 처리 후 state 갱신
+      // 모두 처리 후 상태 갱신
+      // 1) completedKeywords 전체에서 해당 아이템들만 업데이트
       setCompletedKeywords((prev) =>
         prev.map((item) => {
           const updated = updatedItems.find((u) => u.id === item.id);
           return updated ? updated : item;
         })
       );
-      setFilteredKeywords(updatedItems); // 필터링된 데이터도 갱신
+
+      // 2) 필터링 목록도 업데이트
+      setFilteredKeywords((prev) =>
+        prev.map((item) => {
+          const updated = updatedItems.find((u) => u.id === item.id);
+          return updated ? updated : item;
+        })
+      );
+
       setMessage("색인 확인이 완료되었습니다.");
       alert("색인 확인이 완료되었습니다.");
     } catch (error) {
@@ -155,7 +164,7 @@ export default function CompletedKeywordsPage() {
     }
   };
 
-  // 2-1) DB에 naver_mark 업데이트
+  // (B-1) DB에 naver_mark 업데이트
   const updateNaverMark = async (link, mark) => {
     try {
       const res = await fetch("/api/posts/updateNaverMark", {
@@ -173,7 +182,29 @@ export default function CompletedKeywordsPage() {
     }
   };
 
-  // 개별 체크박스 선택/해제
+  // (C) 버튼별로 검사 대상을 다르게 지정
+  // (C-1) 모든 filteredKeywords를 검사
+  const handleNaverIndexCheckAll = () => {
+    checkNaverIndex(filteredKeywords);
+  };
+
+  // (C-2) py_mark가 null 또는 ''인 항목들만 검사
+  const handleNaverIndexCheckPyMarkNull = () => {
+    const itemsToCheck = filteredKeywords.filter(
+      (item) => item.py_mark == null || item.py_mark === ""
+    );
+    checkNaverIndex(itemsToCheck);
+  };
+
+  // (C-3) py_mark가 'X'인 항목들만 검사
+  const handleNaverIndexCheckPyMarkX = () => {
+    const itemsToCheck = filteredKeywords.filter(
+      (item) => item.py_mark === "X"
+    );
+    checkNaverIndex(itemsToCheck);
+  };
+
+  // 체크박스 선택/해제
   const handleCheckboxChange = (id) => {
     setSelectedItems((prev) => {
       const updated = new Set(prev);
@@ -182,10 +213,10 @@ export default function CompletedKeywordsPage() {
     });
   };
 
-  // 전체 선택/해제 핸들러
+  // 전체 선택/해제
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      // 현재 페이지 항목만 모두 추가
+      // 현재 페이지 항목만 추가
       const allIds = currentItems.map((item) => item.id);
       setSelectedItems(new Set([...selectedItems, ...allIds]));
     } else {
@@ -196,7 +227,7 @@ export default function CompletedKeywordsPage() {
     }
   };
 
-  // 정렬 함수
+  // 정렬 버튼 클릭
   const handleSort = (key) => {
     let direction = "asc";
     if (sortConfig.key === key && sortConfig.direction === "asc") {
@@ -205,15 +236,15 @@ export default function CompletedKeywordsPage() {
     setSortConfig({ key, direction });
   };
 
-  // 정렬 적용 함수
+  // 정렬 적용
   const applySort = (dataToSort = filteredKeywords) => {
     const { key, direction } = sortConfig;
     const sortedData = [...dataToSort].sort((a, b) => {
-      // null 또는 undefined 처리
+      // null 처리
       if (!a[key]) return 1;
       if (!b[key]) return -1;
 
-      // 날짜 필드인 경우 Date 객체로 비교
+      // 날짜 필드인 경우
       if (
         key === "write_date" ||
         key === "collect_request_time" ||
@@ -226,7 +257,7 @@ export default function CompletedKeywordsPage() {
         return 0;
       }
 
-      // 문자열 또는 숫자 필드 비교
+      // 문자열/숫자
       if (a[key] < b[key]) return direction === "asc" ? -1 : 1;
       if (a[key] > b[key]) return direction === "asc" ? 1 : -1;
       return 0;
@@ -235,11 +266,11 @@ export default function CompletedKeywordsPage() {
     setFilteredKeywords(sortedData);
   };
 
-  // 필터 적용 함수
+  // 필터 적용
   const applyFilters = () => {
     let filtered = [...completedKeywords];
 
-    // 글쓴시간 필터링
+    // 글쓴시간 필터
     if (writeDateFilter) {
       filtered = filtered.filter((item) => {
         if (!item.write_date) return false;
@@ -248,7 +279,7 @@ export default function CompletedKeywordsPage() {
       });
     }
 
-    // 수집요청시간 필터링 (mapped to py_date)
+    // 수집요청시간 필터 (mapped to py_date)
     if (collectDateFilter) {
       filtered = filtered.filter((item) => {
         if (!item.py_date) return false;
@@ -265,7 +296,7 @@ export default function CompletedKeywordsPage() {
     }
   };
 
-  // 고유한 날짜 리스트 생성 (useMemo를 사용하여 최적화)
+  // 날짜 필터 옵션
   const writeDateOptions = useMemo(() => {
     const dates = completedKeywords
       .map((item) =>
@@ -286,33 +317,25 @@ export default function CompletedKeywordsPage() {
     return Array.from(new Set(dates)).sort((a, b) => new Date(b) - new Date(a));
   }, [completedKeywords]);
 
-  // 현재 페이지에 해당하는 아이템만 잘라서 보여줌
+  // 현재 페이지 항목
   const currentItems = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     const end = currentPage * itemsPerPage;
     return filteredKeywords.slice(start, end);
   }, [filteredKeywords, currentPage, itemsPerPage]);
 
-  // 날짜+시간 포맷 함수
+  // 날짜+시간 포맷
   function formatDateTime(dateString) {
     if (!dateString) return "";
-
     const dateObj = new Date(dateString);
     if (isNaN(dateObj.getTime())) {
-      // dateString이 유효한 날짜가 아니면, 원본 문자열 그대로 리턴
       return dateString;
     }
-
-    // 연도, 월(0부터 시작하므로 +1), 일
     const year = dateObj.getFullYear();
     const month = String(dateObj.getMonth() + 1).padStart(2, "0");
     const day = String(dateObj.getDate()).padStart(2, "0");
-
-    // 시, 분
     const hours = String(dateObj.getHours()).padStart(2, "0");
     const minutes = String(dateObj.getMinutes()).padStart(2, "0");
-
-    // "YYYY-MM-DD HH:mm" 형태로 리턴
     return `${year}-${month}-${day} ${hours}:${minutes}`;
   }
 
@@ -330,11 +353,12 @@ export default function CompletedKeywordsPage() {
         완료 키워드 ({completedKeywords.length}개)
       </h2>
 
-      {/* 색인확인하기 버튼 */}
+      {/* 색인확인하기 (전체) */}
       <button
-        onClick={handleNaverIndexCheck}
+        onClick={handleNaverIndexCheckAll}
         disabled={loading}
         style={{
+          marginRight: "10px",
           marginBottom: "20px",
           padding: "10px 15px",
           backgroundColor: "#27ae60",
@@ -343,7 +367,40 @@ export default function CompletedKeywordsPage() {
           cursor: "pointer",
         }}
       >
-        {loading ? "색인확인 중..." : "색인확인하기"}
+        {loading ? "색인확인 중..." : "색인확인 (전체)"}
+      </button>
+
+      {/* 색인확인하기 (py_mark null) */}
+      <button
+        onClick={handleNaverIndexCheckPyMarkNull}
+        disabled={loading}
+        style={{
+          marginRight: "10px",
+          marginBottom: "20px",
+          padding: "10px 15px",
+          backgroundColor: "#2980b9",
+          color: "#fff",
+          border: "none",
+          cursor: "pointer",
+        }}
+      >
+        {loading ? "색인확인 중..." : "색인확인 (빈값)"}
+      </button>
+
+      {/* 색인확인하기 (py_mark X) */}
+      <button
+        onClick={handleNaverIndexCheckPyMarkX}
+        disabled={loading}
+        style={{
+          marginBottom: "20px",
+          padding: "10px 15px",
+          backgroundColor: "#c0392b",
+          color: "#fff",
+          border: "none",
+          cursor: "pointer",
+        }}
+      >
+        {loading ? "색인확인 중..." : "색인확인 (X만)"}
       </button>
 
       {/* 안내 메시지 */}
@@ -385,7 +442,6 @@ export default function CompletedKeywordsPage() {
                 }
               />
             </th>
-            {/* 정렬 가능한 헤더 */}
             <th
               style={{
                 border: "1px solid #ddd",
@@ -450,7 +506,6 @@ export default function CompletedKeywordsPage() {
                   : "▼"
                 : ""}
             </th>
-            {/* 정렬 가능한 추가 헤더 */}
             <th
               style={{
                 border: "1px solid #ddd",
@@ -483,7 +538,6 @@ export default function CompletedKeywordsPage() {
                   : "▼"
                 : ""}
             </th>
-            {/* 수집요청시간 및 수집요청 헤더 수정 */}
             <th
               style={{
                 border: "1px solid #ddd",
@@ -573,7 +627,6 @@ export default function CompletedKeywordsPage() {
               <td style={{ border: "1px solid #ddd", padding: "8px" }}>
                 {item.write_mark || ""}
               </td>
-              {/* 수집요청시간 및 수집요청 데이터 표시 */}
               <td style={{ border: "1px solid #ddd", padding: "8px" }}>
                 {item.py_date ? formatDateTime(item.py_date) : ""}
               </td>

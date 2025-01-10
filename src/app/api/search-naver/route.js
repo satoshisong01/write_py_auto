@@ -1,3 +1,4 @@
+//app/api/search-naver
 import axios from "axios";
 
 export async function GET(req) {
