@@ -1,6 +1,29 @@
 // app/api/daily-records/route.js
 import db from "@/utils/db";
 
+// KST(UTC+9) 시각을 구해 YYYY-MM-DD 문자열 반환하는 함수
+function getKSTDateString() {
+  const now = new Date();
+
+  // 1) 현재 시각(now)을 UTC ms로 환산
+  //    now.getTime(): 현재 시각(로컬)의 UTC 기준 ms
+  //    now.getTimezoneOffset(): 현재 시차(분 단위) → ms 로 변환
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+
+  // 2) UTC+9 시간
+  const kstMs = utcMs + 9 * 60 * 60000;
+
+  // 3) KST Date 객체
+  const kstDate = new Date(kstMs);
+
+  // 4) "YYYY-MM-DD" 형식으로 변환
+  const yyyy = kstDate.getFullYear();
+  const mm = String(kstDate.getMonth() + 1).padStart(2, "0");
+  const dd = String(kstDate.getDate()).padStart(2, "0");
+
+  return `${yyyy}-${mm}-${dd}`; // 예: "2025-01-15"
+}
+
 export async function POST(req) {
   try {
     // 요청 본문에서 데이터 추출
@@ -38,12 +61,8 @@ export async function POST(req) {
           throw new Error("Invalid data in one of the records.");
         }
 
-        // 서울 시간 기준으로 오늘 날짜 계산
-        const now = new Date();
-        const seoulTime = new Date(
-          now.toLocaleString("en-US", { timeZone: "Asia/Seoul" })
-        );
-        const today = seoulTime.toISOString().slice(0, 10); // YYYY-MM-DD 형식
+        // ★ 수정 핵심: 서울 시간 기준 오늘 날짜
+        const today = getKSTDateString();
 
         // 기존 기록 확인
         const [existingRecords] = await connection.execute(
