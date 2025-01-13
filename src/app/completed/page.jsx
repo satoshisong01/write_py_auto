@@ -74,7 +74,7 @@ export default function CompletedKeywordsPage() {
     }
   };
 
-  // (B) 색인 확인 로직을 별도 함수로 분리
+  // (B) 색인 확인 로직
   //     itemsToCheck: 검사 대상 아이템 배열
   //     -> 네이버 검색 API 호출 -> DB 업데이트 -> state 반영
   const checkNaverIndex = async (itemsToCheck) => {
@@ -183,23 +183,23 @@ export default function CompletedKeywordsPage() {
   };
 
   // (C) 버튼별로 검사 대상을 다르게 지정
-  // (C-1) 모든 filteredKeywords를 검사
+  // (C-1) 날짜 필터링된 filteredKeywords 전체
   const handleNaverIndexCheckAll = () => {
     checkNaverIndex(filteredKeywords);
   };
 
-  // (C-2) py_mark가 null 또는 ''인 항목들만 검사
-  const handleNaverIndexCheckPyMarkNull = () => {
+  // (C-2) naver_mark가 null 또는 ''인 항목만 검사
+  const handleNaverIndexCheckNaverMarkNull = () => {
     const itemsToCheck = filteredKeywords.filter(
-      (item) => item.py_mark == null || item.py_mark === ""
+      (item) => item.naver_mark == null || item.naver_mark === ""
     );
     checkNaverIndex(itemsToCheck);
   };
 
-  // (C-3) py_mark가 'X'인 항목들만 검사
-  const handleNaverIndexCheckPyMarkX = () => {
+  // (C-3) naver_mark가 'X'인 항목만 검사
+  const handleNaverIndexCheckNaverMarkX = () => {
     const itemsToCheck = filteredKeywords.filter(
-      (item) => item.py_mark === "X"
+      (item) => item.naver_mark === "X"
     );
     checkNaverIndex(itemsToCheck);
   };
@@ -370,9 +370,9 @@ export default function CompletedKeywordsPage() {
         {loading ? "색인확인 중..." : "색인확인 (전체)"}
       </button>
 
-      {/* 색인확인하기 (py_mark null) */}
+      {/* 색인확인하기 (빈값) */}
       <button
-        onClick={handleNaverIndexCheckPyMarkNull}
+        onClick={handleNaverIndexCheckNaverMarkNull}
         disabled={loading}
         style={{
           marginRight: "10px",
@@ -387,9 +387,9 @@ export default function CompletedKeywordsPage() {
         {loading ? "색인확인 중..." : "색인확인 (빈값)"}
       </button>
 
-      {/* 색인확인하기 (py_mark X) */}
+      {/* 색인확인하기 (X만) */}
       <button
-        onClick={handleNaverIndexCheckPyMarkX}
+        onClick={handleNaverIndexCheckNaverMarkX}
         disabled={loading}
         style={{
           marginBottom: "20px",
