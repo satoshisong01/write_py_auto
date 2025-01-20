@@ -10,7 +10,7 @@ export default function StartProcessPage() {
   // 스크롤 컨테이너 참조
   const logContainerRef = useRef(null);
 
-  // 컴포넌트 마운트 후 2초마다 로그 가져오기
+  // 컴포넌트 마운트 후 20초마다 로그 가져오기
   useEffect(() => {
     fetchLogs(); // 초기 로그 가져오기
     const interval = setInterval(fetchLogs, 20000);
@@ -25,16 +25,16 @@ export default function StartProcessPage() {
   }, [logContent]);
 
   /**
-   * "작업 시작" 버튼 클릭 시
+   * (1) "작업 시작" 버튼 - 기존 로직
+   *  -> /api/start-process 로 요청하면 automate.js 후 automation.py까지 모두 진행
    */
   const handleStartProcess = async () => {
     if (isRunning) return; // 이미 작업 중이면 무시
-    setIsRunning(true); // 초록 불 ON
-    setMessage("작업 시작 중...");
-    setLogContent(""); // 프론트 로그 초기화
+    setIsRunning(true);
+    setMessage("전체 프로세스 시작 중...");
+    setLogContent("");
 
     try {
-      // Step 1: Start process (which clears logs and starts automate.js)
       const response = await fetch("/api/start-process", { method: "POST" });
       const result = await response.json();
 
@@ -42,8 +42,7 @@ export default function StartProcessPage() {
         setMessage(`오류 발생: ${result.message}`);
         setIsRunning(false);
       } else {
-        setMessage("작업이 시작되었습니다!");
-        // 로그는 자동으로 2초마다 가져와 업데이트됨
+        setMessage("전체 프로세스가 시작되었습니다!");
       }
     } catch (error) {
       setMessage(`에러 발생: ${error.message}`);
@@ -52,7 +51,8 @@ export default function StartProcessPage() {
   };
 
   /**
-   * "작업 중단" 버튼 클릭 시
+   * (2) "작업 중단" 버튼 - 기존 로직
+   *  -> /api/stop-process 로 요청
    */
   const handleStopProcess = async () => {
     try {
@@ -66,6 +66,58 @@ export default function StartProcessPage() {
       }
     } catch (error) {
       setMessage(`중단 API 오류: ${error.message}`);
+    }
+  };
+
+  /**
+   * (3) "글쓰기 시작" 버튼
+   *  -> automate.js 만 실행 (API 라우트: /api/start-write)
+   */
+  const handleStartWrite = async () => {
+    if (isRunning) return; // 이미 작업 중이면 무시
+    setIsRunning(true);
+    setMessage("글쓰기(automate.js) 시작 중...");
+    setLogContent("");
+
+    try {
+      const response = await fetch("/api/start-write", { method: "POST" });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        setMessage(`오류 발생: ${result.message}`);
+        setIsRunning(false);
+      } else {
+        setMessage("글쓰기(automate.js)가 시작되었습니다!");
+      }
+    } catch (error) {
+      setMessage(`에러 발생: ${error.message}`);
+      setIsRunning(false);
+    }
+  };
+
+  /**
+   * (4) "색인 요청 시작" 버튼
+   *  -> automation.py 만 실행 (API 라우트: /api/start-index)
+   */
+  const handleStartIndex = async () => {
+    if (isRunning) return;
+    setIsRunning(true);
+    setMessage("색인 요청(automation.py) 시작 중...");
+    setLogContent("");
+
+    try {
+      const response = await fetch("/api/start-index", { method: "POST" });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        setMessage(`오류 발생: ${result.message}`);
+        setIsRunning(false);
+      } else {
+        setMessage("색인 요청(automation.py)이 시작되었습니다!");
+      }
+    } catch (error) {
+      setMessage(`에러 발생: ${error.message}`);
+      setIsRunning(false);
     }
   };
 
@@ -110,7 +162,7 @@ export default function StartProcessPage() {
         </span>
       </div>
 
-      {/* (2) "작업 시작" 버튼 + "작업 중단" 버튼 */}
+      {/* (2) 기존 "작업 시작" 버튼 / "작업 중단" 버튼 */}
       <div style={{ marginBottom: "20px" }}>
         <button
           onClick={handleStartProcess}
@@ -136,15 +188,50 @@ export default function StartProcessPage() {
             color: "#fff",
             borderRadius: "5px",
             cursor: !isRunning ? "not-allowed" : "pointer",
+            marginRight: "10px",
           }}
         >
           작업 중단
         </button>
       </div>
 
-      <div style={{ color: "#2c3e50" }}>{message}</div>
+      {/* (3) 추가 버튼: "글쓰기 시작", "색인 요청 시작" */}
+      <div style={{ marginBottom: "20px" }}>
+        <button
+          onClick={handleStartWrite}
+          disabled={isRunning}
+          style={{
+            padding: "10px 20px",
+            backgroundColor: isRunning ? "#bdc3c7" : "#2980b9",
+            color: "#fff",
+            borderRadius: "5px",
+            cursor: isRunning ? "not-allowed" : "pointer",
+            marginRight: "10px",
+          }}
+        >
+          글쓰기 시작
+        </button>
 
-      {/* (3) 자동화 로그 뷰어 */}
+        <button
+          onClick={handleStartIndex}
+          disabled={isRunning}
+          style={{
+            padding: "10px 20px",
+            backgroundColor: isRunning ? "#bdc3c7" : "#8e44ad",
+            color: "#fff",
+            borderRadius: "5px",
+            cursor: isRunning ? "not-allowed" : "pointer",
+            marginRight: "10px",
+          }}
+        >
+          색인 요청 시작
+        </button>
+      </div>
+
+      {/* 상태 메시지 출력 */}
+      <div style={{ color: "#2c3e50", marginBottom: "10px" }}>{message}</div>
+
+      {/* (4) 자동화 로그 뷰어 */}
       <h2 style={{ marginTop: "40px" }}>자동화 로그</h2>
       <div
         ref={logContainerRef}
@@ -161,7 +248,7 @@ export default function StartProcessPage() {
         {logContent || "로그가 없습니다."}
       </div>
 
-      {/* (4) blink 애니메이션 정의 (전역) */}
+      {/* (5) blink 애니메이션 정의 (전역) */}
       <style jsx global>{`
         @keyframes blink {
           0%,
