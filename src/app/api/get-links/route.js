@@ -28,30 +28,15 @@ export async function GET(request) {
   }
 
   try {
-    // 1) 현재 UTC 시간에서 9시간 더해 KST 기준 '오늘 날짜' 구하기
-    const nowUtc = new Date(); // 현재 UTC 시각 (JS Date는 내부적으로 UTC로 관리)
-    nowUtc.setHours(nowUtc.getHours() + 9); // +9시간 → KST
-    // KST 날짜 포맷(YYYY-MM-DD)
-    const year = nowUtc.getFullYear();
-    const month = String(nowUtc.getMonth() + 1).padStart(2, "0");
-    const day = String(nowUtc.getDate()).padStart(2, "0");
-    const kstDateString = `${year}-${month}-${day}`; // 예: "2025-01-21"
+    // 데이터베이스 쿼리 실행
+    const [rows] = await db.execute(`
+      SELECT username, link
+      FROM your_table_name
+      WHERE py_mark IS NULL OR py_mark != 'O'
+      ORDER BY write_date DESC
+    `);
 
-    // 2) SQL 쿼리
-    //  - 기존 조건: (py_mark IS NULL OR py_mark != 'O')
-    //  - 추가 조건: DATE(write_date) = kstDateString
-    const [rows] = await db.execute(
-      `
-        SELECT username, link
-        FROM your_table_name
-        WHERE (py_mark IS NULL OR py_mark != 'O')
-          AND DATE(write_date) = ?
-        ORDER BY write_date DESC
-      `,
-      [kstDateString]
-    );
-
-    // 3) links 배열 변환
+    // 링크 배열 추출
     const links = rows.map((row) => ({
       username: row.username,
       url: row.link,
