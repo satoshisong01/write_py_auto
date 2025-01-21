@@ -704,7 +704,7 @@ const processAccount = async (
       .map((account) => {
         const { username } = account;
         const currentPostCount = usernameToPostCount[username] || 0;
-        const keywordLimitPerAccount = Math.max(50 - currentPostCount, 0);
+        const keywordLimitPerAccount = Math.max(10 - currentPostCount, 0);
         return { ...account, keywordLimitPerAccount };
       })
       .filter((account) => account.keywordLimitPerAccount > 0); // 50개 미만인 계정만 필터링

@@ -7,6 +7,15 @@ export default function StartProcessPage() {
   const [message, setMessage] = useState("");
   const [logContent, setLogContent] = useState("");
 
+  // 타임세팅 관련 상태들
+  const [jsStart, setJsStart] = useState("");
+  const [jsEnd, setJsEnd] = useState("");
+  const [pyStart, setPyStart] = useState("");
+  const [pyEnd, setPyEnd] = useState("");
+  const [afterTime, setAfterTime] = useState("");
+  const [postCount, setPostCount] = useState("");
+  const [cycleCount, setCycleCount] = useState("");
+
   // 스크롤 컨테이너 참조
   const logContainerRef = useRef(null);
 
@@ -15,6 +24,11 @@ export default function StartProcessPage() {
     fetchLogs(); // 초기 로그 가져오기
     const interval = setInterval(fetchLogs, 20000);
     return () => clearInterval(interval);
+  }, []);
+
+  // 컴포넌트 마운트 시 타임 세팅 값 불러오기
+  useEffect(() => {
+    fetchTimeSettings();
   }, []);
 
   // 로그가 바뀔 때마다 스크롤 자동 최하단으로
@@ -122,7 +136,7 @@ export default function StartProcessPage() {
   };
 
   /**
-   * 로그 가져오기
+   * (5) 자동화 로그 가져오기
    */
   const fetchLogs = async () => {
     try {
@@ -137,6 +151,62 @@ export default function StartProcessPage() {
       }
     } catch (error) {
       console.error("로그 요청 에러:", error);
+    }
+  };
+
+  /**
+   * (6) 현재 타임세팅값 불러오기 (GET)
+   */
+  const fetchTimeSettings = async () => {
+    try {
+      const res = await fetch("/api/time-setting", { method: "GET" });
+      const data = await res.json();
+      if (data.success) {
+        const settings = data.data;
+        setJsStart(settings.js_start || "");
+        setJsEnd(settings.js_end || "");
+        setPyStart(settings.py_start || "");
+        setPyEnd(settings.py_end || "");
+        setAfterTime(settings.after_time || "");
+        setPostCount(settings.post_count || "");
+        setCycleCount(settings.cycle_count || "");
+      }
+    } catch (error) {
+      console.error("타임세팅 불러오기 오류:", error);
+    }
+  };
+
+  /**
+   * (7) 타임세팅 저장 (생성/업데이트)
+   */
+  const handleSaveTimeSettings = async () => {
+    // 저장할 데이터 객체
+    const payload = {
+      js_start: jsStart,
+      js_end: jsEnd,
+      py_start: pyStart,
+      py_end: pyEnd,
+      after_time: afterTime,
+      post_count: postCount,
+      cycle_count: cycleCount,
+    };
+
+    try {
+      const res = await fetch("/api/time-setting", {
+        method: "POST", // 백엔드에서는 값이 없다면 생성, 있으면 업데이트하도록 처리
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setMessage("타임 세팅 저장 성공!");
+      } else {
+        setMessage(`타임 세팅 저장 실패: ${result.message}`);
+      }
+    } catch (error) {
+      setMessage(`타임 세팅 저장 에러: ${error.message}`);
     }
   };
 
@@ -228,10 +298,115 @@ export default function StartProcessPage() {
         </button>
       </div>
 
-      {/* 상태 메시지 출력 */}
+      {/* (4) 타임 세팅 입력 폼 */}
+      <div
+        style={{
+          marginBottom: "20px",
+          border: "1px solid #ccc",
+          padding: "15px",
+          borderRadius: "5px",
+        }}
+      >
+        <h3>타임 세팅</h3>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "15px" }}>
+          {/* 글쓰기 시작 시간 */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <label>글쓰기 시작 시간</label>
+            <input
+              type="text"
+              value={jsStart}
+              onChange={(e) => setJsStart(e.target.value)}
+              placeholder="예: 09:00"
+              style={{ padding: "5px", width: "150px" }}
+            />
+          </div>
+          {/* 글쓰기 종료 시간 */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <label>글쓰기 종료 시간</label>
+            <input
+              type="text"
+              value={jsEnd}
+              onChange={(e) => setJsEnd(e.target.value)}
+              placeholder="예: 18:00"
+              style={{ padding: "5px", width: "150px" }}
+            />
+          </div>
+          {/* 색인 요청 시간 */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <label>색인 요청 시간</label>
+            <input
+              type="text"
+              value={pyStart}
+              onChange={(e) => setPyStart(e.target.value)}
+              placeholder="예: 18:05"
+              style={{ padding: "5px", width: "150px" }}
+            />
+          </div>
+          {/* 색인 종료 시간 */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <label>색인 종료 시간</label>
+            <input
+              type="text"
+              value={pyEnd}
+              onChange={(e) => setPyEnd(e.target.value)}
+              placeholder="예: 18:30"
+              style={{ padding: "5px", width: "150px" }}
+            />
+          </div>
+          {/* 글쓰기후 색인 시작 시간 */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <label>글쓰기후 색인 시작 시간</label>
+            <input
+              type="text"
+              value={afterTime}
+              onChange={(e) => setAfterTime(e.target.value)}
+              placeholder="예: 18:35"
+              style={{ padding: "5px", width: "150px" }}
+            />
+          </div>
+          {/* 글쓰기 갯수 */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <label>글쓰기 갯수</label>
+            <input
+              type="number"
+              value={postCount}
+              onChange={(e) => setPostCount(e.target.value)}
+              placeholder="예: 10"
+              style={{ padding: "5px", width: "150px" }}
+            />
+          </div>
+          {/* 전체 반복 횟수 */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <label>전체 반복 횟수</label>
+            <input
+              type="number"
+              value={cycleCount}
+              onChange={(e) => setCycleCount(e.target.value)}
+              placeholder="예: 5"
+              style={{ padding: "5px", width: "150px" }}
+            />
+          </div>
+        </div>
+        <button
+          onClick={handleSaveTimeSettings}
+          style={{
+            marginTop: "15px",
+            padding: "10px 20px",
+            backgroundColor: "#3498db",
+            color: "#fff",
+            border: "none",
+            borderRadius: "5px",
+            cursor: "pointer",
+          }}
+        >
+          타임 세팅 저장
+        </button>
+      </div>
+
+      {/* (5) 상태 메시지 출력 */}
       <div style={{ color: "#2c3e50", marginBottom: "10px" }}>{message}</div>
 
-      {/* (4) 자동화 로그 뷰어 */}
+      {/* (6) 자동화 로그 뷰어 */}
       <h2 style={{ marginTop: "40px" }}>자동화 로그</h2>
       <div
         ref={logContainerRef}
@@ -248,7 +423,7 @@ export default function StartProcessPage() {
         {logContent || "로그가 없습니다."}
       </div>
 
-      {/* (5) blink 애니메이션 정의 (전역) */}
+      {/* (7) blink 애니메이션 정의 (전역) */}
       <style jsx global>{`
         @keyframes blink {
           0%,

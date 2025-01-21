@@ -58,7 +58,7 @@ const isAllAccountsReached50 = async () => {
     }
 
     // 모든 계정의 post_count가 50 이상인지 확인
-    const allReached = records.every((r) => r.post_count >= 50);
+    const allReached = records.every((r) => r.post_count >= 10);
     return allReached;
   } catch (error) {
     console.error("isAllAccountsReached50() 중 에러:", error.message);
