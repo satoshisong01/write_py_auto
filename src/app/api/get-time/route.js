@@ -1,14 +1,10 @@
 // app/api/get-time/route.js
-
 import { NextResponse } from "next/server";
-import db from "@/utils/db"; // DB 연결 유틸
+import db from "@/utils/db";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-/**
- * 인증 검증 함수
- */
 function verifyAuth(request) {
   const authHeader = request.headers.get("Authorization");
   const token = process.env.AUTH_TOKEN;
@@ -18,13 +14,7 @@ function verifyAuth(request) {
   return true;
 }
 
-/**
- * GET /api/get-time
- *  - time_setting 테이블에서 한 건(예: LIMIT 1)을 읽어와 반환
- *  - 인증 필요
- */
 export async function GET(request) {
-  // 1) 인증 체크
   if (!verifyAuth(request)) {
     return NextResponse.json(
       { success: false, message: "Unauthorized" },
@@ -33,17 +23,26 @@ export async function GET(request) {
   }
 
   try {
-    // 2) time_setting 테이블에서 한 건 조회 (단 하나만 있다고 가정)
-    const [rows] = await db.execute("SELECT * FROM time_setting LIMIT 1");
+    // SELECT 시 TIME 컬럼을 HH:MM 형태로 변환
+    const [rows] = await db.execute(`
+      SELECT
+        DATE_FORMAT(js_start, '%H:%i') as js_start,
+        DATE_FORMAT(js_end, '%H:%i')   as js_end,
+        DATE_FORMAT(py_start, '%H:%i') as py_start,
+        DATE_FORMAT(py_end, '%H:%i')   as py_end,
+        DATE_FORMAT(after_time, '%H:%i') as after_time,
+        post_count,
+        cycle_count
+      FROM time_setting
+      LIMIT 1
+    `);
 
     if (rows && rows.length > 0) {
-      // 데이터를 성공적으로 가져옴
       return NextResponse.json({
         success: true,
         data: rows[0],
       });
     } else {
-      // 데이터가 없는 경우
       return NextResponse.json({
         success: true,
         data: {},
