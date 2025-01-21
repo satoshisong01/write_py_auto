@@ -307,7 +307,7 @@ export default function StartProcessPage() {
           borderRadius: "5px",
         }}
       >
-        <h3>타임 세팅</h3>
+        <h2>타임 세팅</h2>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "15px" }}>
           {/* 글쓰기 시작 시간 */}
           <div style={{ display: "flex", flexDirection: "column" }}>
