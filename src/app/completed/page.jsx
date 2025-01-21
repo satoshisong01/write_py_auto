@@ -522,6 +522,23 @@ export default function CompletedKeywordsPage() {
                   : "▼"
                 : ""}
             </th>
+            {/* 새로 추가한 카페백링크 컬럼 */}
+            <th
+              style={{
+                border: "1px solid #ddd",
+                padding: "8px",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+              onClick={() => handleSort("cafe_write")}
+            >
+              카페백링크{" "}
+              {sortConfig.key === "cafe_write"
+                ? sortConfig.direction === "asc"
+                  ? "▲"
+                  : "▼"
+                : ""}
+            </th>
             <th
               style={{
                 border: "1px solid #ddd",
@@ -619,6 +636,21 @@ export default function CompletedKeywordsPage() {
                     style={{ color: "#3498db" }}
                   >
                     {item.link}
+                  </a>
+                ) : (
+                  ""
+                )}
+              </td>
+              {/* 새로 추가한 카페백링크 데이터 (cafe_write) */}
+              <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                {item.cafe_write ? (
+                  <a
+                    href={item.cafe_write}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: "#3498db" }}
+                  >
+                    {item.cafe_write}
                   </a>
                 ) : (
                   ""
