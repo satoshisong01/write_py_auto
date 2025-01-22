@@ -6,11 +6,11 @@ const fs = require("fs").promises;
 require("dotenv").config();
 
 /**
- * Gemini API 키 로드 함수
+ * 1) Gemini API 키 로드
  */
 const loadGeminiApiKeys = async () => {
   const apiKeys = [];
-  for (let i = 1; i <= 15; i++) {
+  for (let i = 1; i <= 62; i++) {
     const keyVar = `GEMINI_API_KEY${i}`;
     const key = process.env[keyVar];
     if (key) {
@@ -21,82 +21,92 @@ const loadGeminiApiKeys = async () => {
 };
 
 /**
- * daily-records/fetch API를 통해
- * 오늘 날짜 기준 모든 계정의 post_count가 50 이상인지 확인하는 함수
+ * 2) get-time에서 post_count 가져오기
+ *   - Next.js 서버가 http://localhost:3000 에서 동작한다고 가정
+ *   - 인증이 필요 없다면 Authorization 헤더 삭제 가능
  */
-const isAllAccountsReached50 = async () => {
+const fetchTimeSettingPostCount = async () => {
   try {
-    const localServerUrl = process.env.LOCAL_SERVER_URL;
+    const url = "http://localhost:3000/api/get-time";
+    // 필요 시 제거
     const authToken = process.env.AUTH_TOKEN;
 
-    if (!localServerUrl || !authToken) {
-      console.error("LOCAL_SERVER_URL 또는 AUTH_TOKEN이 설정되지 않았습니다.");
-      return false;
-    }
+    // GET /api/get-time
+    const getTimeRes = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+      timeout: 5000,
+    });
 
-    const response = await axios.get(
-      `${localServerUrl}/api/daily-records/fetch`,
-      {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      }
-    );
+    if (!getTimeRes.data.success) {
+      console.warn("get-time API 실패:", getTimeRes.data.message);
+      return 10; // fallback
+    }
+    // 예) { success:true, data:{ post_count:10, ... } }
+    const timeData = getTimeRes.data.data;
+    const postCount = timeData?.post_count ?? 10;
+    console.log(`[get-time] post_count=${postCount}`);
+    return postCount;
+  } catch (error) {
+    console.error("[fetchTimeSettingPostCount] API 오류:", error.message);
+    return 10; // fallback
+  }
+};
+
+/**
+ * 3) 모든 계정이 목표치 이상 달성했는지
+ *   - daily-records/fetch로 각 계정 post_count 확인
+ */
+const isAllAccountsReachedGoal = async (goal) => {
+  try {
+    const url = "http://localhost:3000/api/daily-records/fetch";
+    // 필요 시 제거
+    const authToken = process.env.AUTH_TOKEN;
+
+    const response = await axios.get(url, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
 
     if (!response.data.success) {
-      console.error(
-        "daily-records/fetch API 호출 실패:",
-        response.data.message
-      );
+      console.error("daily-records/fetch API 실패:", response.data.message);
       return false;
     }
 
-    const records = response.data.data; // 오늘 날짜 기준이라고 가정
+    const records = response.data.data;
     if (!records || records.length === 0) {
-      // 아예 레코드가 없으면 50을 못 채웠다고 봄
-      return false;
+      return false; // 아직 데이터 없음 → 미달
     }
 
-    // 모든 계정의 post_count가 50 이상인지 확인
-    const allReached = records.every((r) => r.post_count >= 10);
-    return allReached;
+    // 모든 계정 post_count가 goal 이상인지?
+    return records.every((r) => r.post_count >= goal);
   } catch (error) {
-    console.error("isAllAccountsReached50() 중 에러:", error.message);
+    console.error("isAllAccountsReachedGoal() 에러:", error.message);
     return false;
   }
 };
 
 /**
- * automate.js 실행 함수 via HTTP request
+ * 4) automate.js 실행
  */
 const runAutomate = async (apiKeyVar) => {
   try {
-    const localServerUrl = process.env.LOCAL_SERVER_URL;
+    const url = "http://localhost:3000/start-automate";
     const authToken = process.env.AUTH_TOKEN;
-
-    if (!localServerUrl || !authToken) {
-      throw new Error(
-        "LOCAL_SERVER_URL 또는 AUTH_TOKEN이 설정되지 않았습니다."
-      );
-    }
 
     console.log(`### ${apiKeyVar} 사용: ${process.env[apiKeyVar]} ###`);
 
     const response = await axios.post(
-      `${localServerUrl}/start-automate`,
-      { api_key_var: apiKeyVar }, // 필요 시 추가 데이터 전송
+      url,
+      { api_key_var: apiKeyVar },
       {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-        timeout: 60000, // 60초 타임아웃
+        headers: { Authorization: `Bearer ${authToken}` },
+        timeout: 60000,
       }
     );
 
     if (response.data.success) {
-      console.log(
-        `automate.js가 성공적으로 실행되었습니다 (API Key: ${apiKeyVar}).`
-      );
+      console.log(`automate.js 실행 성공 (API Key: ${apiKeyVar}).`);
     } else {
       console.error(
         `automate.js 실행 실패 (API Key: ${apiKeyVar}):`,
@@ -104,87 +114,65 @@ const runAutomate = async (apiKeyVar) => {
       );
     }
   } catch (error) {
-    console.error(
-      `automate.js 실행 요청 중 오류 발생 (API Key: ${apiKeyVar}):`,
-      error.message
-    );
+    console.error(`automate.js 실행 요청 오류 (${apiKeyVar}):`, error.message);
     throw error;
   }
 };
 
 /**
- * automation.py 실행 함수 via HTTP request
+ * 5) automation.py 실행
  */
 const runAutomationPy = async () => {
   try {
-    const localServerUrl = process.env.LOCAL_SERVER_URL;
+    const url = "http://localhost:3000/start-automation-py";
     const authToken = process.env.AUTH_TOKEN;
-
-    if (!localServerUrl || !authToken) {
-      console.error("LOCAL_SERVER_URL 또는 AUTH_TOKEN이 설정되지 않았습니다.");
-      throw new Error("LOCAL_SERVER_URL 또는 AUTH_TOKEN not set");
-    }
 
     console.log("automation.py 실행을 요청합니다.");
 
     const response = await axios.post(
-      `${localServerUrl}/start-automation-py`,
-      {}, // 필요한 데이터가 있다면 여기에 추가
+      url,
+      {},
       {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          "Content-Type": "application/json",
-        },
-        timeout: 60000, // 60초 타임아웃
+        headers: { Authorization: `Bearer ${authToken}` },
+        timeout: 60000,
       }
     );
 
     if (response.data.success) {
-      console.log("automation.py가 성공적으로 실행되었습니다.");
+      console.log("automation.py 실행 성공");
     } else {
       console.error("automation.py 실행 실패:", response.data.message);
-      if (response.data.error) {
-        console.error("오류 내용:", response.data.error);
-      }
     }
   } catch (error) {
-    console.error("automation.py 실행 요청 중 오류 발생:", error.message);
+    console.error("automation.py 실행 요청 오류:", error.message);
     throw error;
   }
 };
 
 /**
- * daily-records 테이블에
- * "오늘 날짜" 기준으로 없는 username들은 post_count=0으로 추가하는 함수
+ * 6) daily-records/init (목표치와 worklist 전달)
  */
-const initDailyWorkRecords = async (worklist) => {
+const initDailyWorkRecords = async (worklist, goal) => {
   try {
-    const localServerUrl = process.env.LOCAL_SERVER_URL;
+    const url = "http://localhost:3000/api/daily-records/init";
     const authToken = process.env.AUTH_TOKEN;
 
-    if (!localServerUrl || !authToken) {
-      throw new Error(
-        "LOCAL_SERVER_URL 또는 AUTH_TOKEN이 설정되지 않았습니다."
-      );
-    }
-
     const response = await axios.post(
-      `${localServerUrl}/api/daily-records/init`,
+      url,
       {
         worklist,
-        api_key: process.env.API_KEY,
+        post_count_goal: goal,
+        api_key: process.env.API_KEY, // 필요 없다면 제거
       },
       {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
+        headers: { Authorization: `Bearer ${authToken}` },
       }
     );
 
     if (!response.data.success) {
       throw new Error(`daily-records/init 실패: ${response.data.message}`);
     }
-    console.log("### daily-records가 정상적으로 초기화되었습니다. ###");
+    console.log("[initDailyWorkRecords] daily-records가 정상적으로 초기화됨");
   } catch (error) {
     console.error("daily-records/init 에러:", error.message);
     throw error;
@@ -192,66 +180,62 @@ const initDailyWorkRecords = async (worklist) => {
 };
 
 /**
- * sleep 함수
+ * 7) sleep
  */
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * 메인 함수
+ * 8) 메인 함수
  */
 const main = async () => {
   console.log("run_automate.js 실행 시작");
 
   try {
-    // 1. Gemini API 키 로드
+    // (A) get-time에서 post_count 가져오기
+    const timeSettingPostCount = await fetchTimeSettingPostCount();
+    console.log(`오늘 목표 post_count=${timeSettingPostCount}`);
+
+    // (B) Gemini API 키 로드
     const apiKeys = await loadGeminiApiKeys();
     if (apiKeys.length === 0) {
-      console.error(
-        "사용 가능한 Gemini API 키가 없습니다. .env 파일을 확인하세요."
-      );
+      console.error("사용 가능한 Gemini API 키가 없습니다.");
       process.exit(1);
     }
     console.log(`로드된 Gemini API 키 수: ${apiKeys.length}`);
 
-    // (A) 먼저 worklist를 가져옴
-    console.log("워크리스트를 가져오는 중...");
+    // (C) 워크리스트 가져오기
+    console.log("워크리스트 가져오는 중...");
     let worklist = null;
     try {
       const response = await axios.get(
-        `${process.env.LOCAL_SERVER_URL}/api/worklist/fetch`,
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
-          },
-        }
+        "http://localhost:3000/api/worklist/fetch",
+        { headers: { Authorization: `Bearer ${process.env.AUTH_TOKEN}` } }
       );
       if (response.data.success) {
         worklist = response.data.data;
       } else {
-        console.error(`워크리스트 가져오기 실패: ${response.data.message}`);
+        console.error("워크리스트 fetch 실패:", response.data.message);
       }
     } catch (error) {
-      console.error(`워크리스트 가져오기 중 오류 발생: ${error.message}`);
+      console.error("워크리스트 fetch 오류:", error.message);
     }
 
     if (!worklist) {
-      console.error("워크리스트를 가져오지 못했습니다. 종료합니다.");
+      console.error("워크리스트가 없으므로 종료");
       process.exit(1);
     }
 
-    // (B) daily-records 테이블에 누락된 계정 레코드 (post_count=0) 생성
-    await initDailyWorkRecords(worklist);
+    // (D) daily-records/init (worklist + 목표치)
+    await initDailyWorkRecords(worklist, timeSettingPostCount);
 
-    // 2. 각 API 키를 순회하며 automate.js 실행
+    // (E) 각 API 키 순회하여 automate.js 실행
     for (const apiKeyVar of apiKeys) {
-      // 혹시 이미 모든 계정이 50개를 채웠는지(= 작업 끝인지) 확인
-      if (await isAllAccountsReached50()) {
-        console.log("모든 계정이 이미 50개를 작성했습니다. 작업 종료합니다.");
+      if (await isAllAccountsReachedGoal(timeSettingPostCount)) {
+        console.log("모든 계정이 이미 목표치 달성. 종료");
         break;
       }
 
       try {
-        // 실제로 automate.js 실행 via HTTP 요청
         await runAutomate(apiKeyVar);
       } catch (error) {
         console.error(
@@ -260,68 +244,61 @@ const main = async () => {
         );
       }
 
-      // 다시 확인: 이번 키로 작업한 후 50을 다 채웠으면 나머지 키는 사용 안 하고 종료
-      if (await isAllAccountsReached50()) {
-        console.log(
-          "모든 계정이 50개를 채웠습니다. 더 이상 작업하지 않고 종료합니다."
-        );
+      if (await isAllAccountsReachedGoal(timeSettingPostCount)) {
+        console.log("모든 계정이 목표치 달성. 더 이상 작업 안 함");
         break;
       }
 
-      // 다음 키로 넘어가기 전에 잠시 대기
-      await sleep(2000); // 2초 정도 대기
+      // 다음 키로 넘어가기 전 잠시 대기
+      await sleep(2000);
     }
 
-    console.log("모든 automate.js 작업을 마쳤거나, 중간에 중단되었습니다.");
+    console.log("모든 automate.js 작업이 종료되었거나 중단되었습니다.");
 
-    // 3. worklist.json을 만들어 automation.py 실행 via HTTP
-    console.log("워크리스트를 다시 가져오는 중...");
+    // (F) worklist 다시 가져오기 -> automation.py 실행
+    console.log("워크리스트 재가져오기...");
     let worklist2 = null;
     try {
       const response = await axios.get(
-        `${process.env.LOCAL_SERVER_URL}/api/worklist/fetch`,
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.AUTH_TOKEN}`,
-          },
-        }
+        "http://localhost:3000/api/worklist/fetch",
+        { headers: { Authorization: `Bearer ${process.env.AUTH_TOKEN}` } }
       );
       if (response.data.success) {
         worklist2 = response.data.data;
       } else {
-        console.error(`워크리스트 가져오기 실패: ${response.data.message}`);
+        console.error("워크리스트 fetch 실패2:", response.data.message);
       }
     } catch (error) {
-      console.error(`워크리스트 가져오기 중 오류 발생: ${error.message}`);
+      console.error("워크리스트 fetch 오류2:", error.message);
     }
 
     if (!worklist2) {
-      console.error(
-        "워크리스트를 가져오지 못했습니다. automation.py를 실행하지 않습니다."
-      );
+      console.error("워크리스트 없음 -> automation.py 실행 스킵");
     } else {
+      // 파일로 저장 (선택)
       const dataFilePath = path.resolve(__dirname, "./worklist.json");
       await fs.writeFile(
         dataFilePath,
         JSON.stringify(worklist2, null, 4),
         "utf-8"
       );
-      console.log("워크리스트 데이터를 'worklist.json' 파일에 저장했습니다.");
+      console.log("재가져온 워크리스트 -> worklist.json 저장 완료");
 
-      console.log("automation.py를 실행합니다.");
+      // automation.py 실행
       try {
         await runAutomationPy();
-        console.log("automation.py가 성공적으로 실행되었습니다.");
+        console.log("automation.py 실행 요청 완료");
       } catch (error) {
-        console.error("automation.py 실행 중 오류 발생:", error);
+        console.error("automation.py 실행 중 오류:", error);
       }
     }
 
-    console.log("### 모든 작업이 완료되어 스크립트를 종료합니다. ###");
+    console.log("### run_automate.js: 모든 작업 종료 ###");
   } catch (error) {
-    console.error("메인 실행 중 오류 발생:", error);
+    console.error("메인 실행 중 오류:", error);
     process.exit(1);
   }
 };
 
+// 메인 실행
 main();
