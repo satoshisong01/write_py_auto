@@ -279,7 +279,7 @@ export default function StartProcessPage() {
             marginRight: "10px",
           }}
         >
-          글쓰기 시작
+          테스트 시작(글쓰기,색인당일)
         </button>
 
         <button
@@ -353,7 +353,7 @@ export default function StartProcessPage() {
               style={{ padding: "5px", width: "150px" }}
             />
           </div>
-          {/* 글쓰기후 색인 시작 시간 */}
+          {/* 글쓰기후 색인 시작 시간
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label>글쓰기후 색인 시작 시간</label>
             <input
@@ -363,7 +363,7 @@ export default function StartProcessPage() {
               placeholder="예: 18:35"
               style={{ padding: "5px", width: "150px" }}
             />
-          </div>
+          </div> */}
           {/* 글쓰기 갯수 */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label>글쓰기 갯수</label>
