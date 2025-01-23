@@ -32,7 +32,8 @@ export async function GET(request) {
     const [rows] = await db.execute(`
       SELECT username, link
       FROM your_table_name
-      WHERE py_mark IS NULL OR py_mark != 'O'
+      WHERE (py_mark IS NULL OR py_mark != 'O')
+        AND DATE(write_date) = CURDATE()
       ORDER BY write_date DESC
     `);
 
