@@ -169,9 +169,9 @@ export default function StartProcessPage() {
         setPyStart(settings.py_start || "");
         setPyEnd(settings.py_end || "");
         setAfterTime(settings.after_time || "");
-        setPostCount(settings.post_count || "");
-        setCycleCount(settings.cycle_count || "");
-        setAddCount(settings.add_count || "");
+        setPostCount(settings.post_count?.toString() || "0");
+        setCycleCount(settings.cycle_count?.toString() || "0");
+        setAddCount(settings.add_count?.toString() || "0");
       }
     } catch (error) {
       console.error("타임세팅 불러오기 오류:", error);
@@ -182,6 +182,11 @@ export default function StartProcessPage() {
    * (7) 타임세팅 저장 (생성/업데이트)
    */
   const handleSaveTimeSettings = async () => {
+    // 목표 글쓰기 갯수와 추가 글쓰기 갯수를 합산
+    const currentPostCount = parseInt(postCount, 10) || 0;
+    const additionalCount = parseInt(addCount, 10) || 0;
+    const newPostCount = currentPostCount + additionalCount;
+
     // 저장할 데이터 객체
     const payload = {
       js_start: jsStart,
@@ -189,9 +194,9 @@ export default function StartProcessPage() {
       py_start: pyStart,
       py_end: pyEnd,
       after_time: afterTime,
-      post_count: postCount,
+      post_count: newPostCount,
       cycle_count: cycleCount,
-      add_count: addCount,
+      add_count: 0, // 추가 글쓰기 갯수는 저장 후 초기화
     };
 
     try {
@@ -204,7 +209,11 @@ export default function StartProcessPage() {
       });
       const result = await res.json();
       if (result.success) {
-        setMessage("타임 세팅 저장 성공!");
+        setPostCount(newPostCount.toString());
+        setAddCount("");
+        setMessage(
+          "타임 세팅 저장 성공! 목표 글쓰기 갯수가 업데이트되었습니다."
+        );
       } else {
         setMessage(`타임 세팅 저장 실패: ${result.message}`);
       }
@@ -332,6 +341,7 @@ export default function StartProcessPage() {
               onChange={(e) => setJsEnd(e.target.value)}
               placeholder="예: 18:00"
               style={{ padding: "5px", width: "150px" }}
+              readOnly // 수정 불가
             />
           </div>
           {/* 색인 요청 시간 */}
@@ -356,28 +366,22 @@ export default function StartProcessPage() {
               style={{ padding: "5px", width: "150px" }}
             />
           </div>
-          {/* 글쓰기후 색인 시작 시간
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <label>글쓰기후 색인 시작 시간</label>
-            <input
-              type="text"
-              value={afterTime}
-              onChange={(e) => setAfterTime(e.target.value)}
-              placeholder="예: 18:35"
-              style={{ padding: "5px", width: "150px" }}
-            />
-          </div> */}
-          {/* 글쓰기 갯수 */}
+          {/* 목표 글쓰기 갯수 */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label>목표 글쓰기 갯수</label>
             <input
               type="number"
               value={postCount}
-              onChange={(e) => setPostCount(e.target.value)}
-              placeholder="예: 10"
-              style={{ padding: "5px", width: "150px" }}
+              readOnly // 사용자가 수정할 수 없도록 설정
+              style={{
+                padding: "5px",
+                width: "150px",
+                backgroundColor: "#ecf0f1",
+                cursor: "not-allowed",
+              }}
             />
           </div>
+          {/* 추가 글쓰기 갯수 */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label>추가 글쓰기 갯수</label>
             <input
