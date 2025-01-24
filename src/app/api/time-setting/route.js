@@ -37,6 +37,7 @@ export async function POST(request) {
       after_time,
       post_count,
       cycle_count,
+      add_count,
     } = await request.json();
 
     // 기존 값이 존재하는지 확인
@@ -47,7 +48,7 @@ export async function POST(request) {
       const id = rows[0].id;
       await db.execute(
         `UPDATE time_setting 
-         SET js_start = ?, js_end = ?, py_start = ?, py_end = ?, after_time = ?, post_count = ?, cycle_count = ?
+         SET js_start = ?, js_end = ?, py_start = ?, py_end = ?, after_time = ?, post_count = ?, cycle_count = ?, add_count = ?
          WHERE id = ?`,
         [
           js_start,
@@ -57,6 +58,7 @@ export async function POST(request) {
           after_time,
           post_count,
           cycle_count,
+          add_count,
           id,
         ]
       );
@@ -68,7 +70,7 @@ export async function POST(request) {
       // 데이터가 없으면 신규 생성
       const [result] = await db.execute(
         `INSERT INTO time_setting 
-          (js_start, js_end, py_start, py_end, after_time, post_count, cycle_count)
+          (js_start, js_end, py_start, py_end, after_time, post_count, cycle_count, add_count)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           js_start,
@@ -78,6 +80,7 @@ export async function POST(request) {
           after_time,
           post_count,
           cycle_count,
+          add_count,
         ]
       );
       return Response.json({

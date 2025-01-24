@@ -32,7 +32,8 @@ export async function GET(request) {
         DATE_FORMAT(py_end, '%H:%i')   as py_end,
         DATE_FORMAT(after_time, '%H:%i') as after_time,
         post_count,
-        cycle_count
+        cycle_count,
+        add_count,
       FROM time_setting
       LIMIT 1
     `);

@@ -15,6 +15,7 @@ export default function StartProcessPage() {
   const [afterTime, setAfterTime] = useState("");
   const [postCount, setPostCount] = useState("");
   const [cycleCount, setCycleCount] = useState("");
+  const [addCount, setAddCount] = useState("");
 
   // 스크롤 컨테이너 참조
   const logContainerRef = useRef(null);
@@ -170,6 +171,7 @@ export default function StartProcessPage() {
         setAfterTime(settings.after_time || "");
         setPostCount(settings.post_count || "");
         setCycleCount(settings.cycle_count || "");
+        setAddCount(settings.add_count || "");
       }
     } catch (error) {
       console.error("타임세팅 불러오기 오류:", error);
@@ -189,6 +191,7 @@ export default function StartProcessPage() {
       after_time: afterTime,
       post_count: postCount,
       cycle_count: cycleCount,
+      add_count: addCount,
     };
 
     try {
@@ -366,12 +369,22 @@ export default function StartProcessPage() {
           </div> */}
           {/* 글쓰기 갯수 */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label>글쓰기 갯수</label>
+            <label>목표 글쓰기 갯수</label>
             <input
               type="number"
               value={postCount}
               onChange={(e) => setPostCount(e.target.value)}
               placeholder="예: 10"
+              style={{ padding: "5px", width: "150px" }}
+            />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <label>추가 글쓰기 갯수</label>
+            <input
+              type="number"
+              value={addCount}
+              onChange={(e) => setAddCount(e.target.value)}
+              placeholder="예: 50"
               style={{ padding: "5px", width: "150px" }}
             />
           </div>
