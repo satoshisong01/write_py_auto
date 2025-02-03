@@ -137,7 +137,34 @@ export default function StartProcessPage() {
   };
 
   /**
-   * (5) 자동화 로그 가져오기
+   * (5) "글쓰기만" 버튼 - 신규 추가
+   *  -> 추후 지정하실 API 엔드포인트를 호출합니다.
+   */
+  const handleWriteOnly = async () => {
+    if (isRunning) return; // 이미 작업 중이면 무시
+    setIsRunning(true);
+    setMessage("글쓰기만 시작 중...");
+    setLogContent("");
+
+    try {
+      // 추후 실제 호출할 API 엔드포인트로 변경하시면 됩니다.
+      const response = await fetch("/api/start-write-only", { method: "POST" });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        setMessage(`오류 발생: ${result.message}`);
+        setIsRunning(false);
+      } else {
+        setMessage("글쓰기만이 시작되었습니다!");
+      }
+    } catch (error) {
+      setMessage(`에러 발생: ${error.message}`);
+      setIsRunning(false);
+    }
+  };
+
+  /**
+   * (6) 자동화 로그 가져오기
    */
   const fetchLogs = async () => {
     try {
@@ -156,7 +183,7 @@ export default function StartProcessPage() {
   };
 
   /**
-   * (6) 현재 타임세팅값 불러오기 (GET)
+   * (7) 현재 타임세팅값 불러오기 (GET)
    */
   const fetchTimeSettings = async () => {
     try {
@@ -179,7 +206,7 @@ export default function StartProcessPage() {
   };
 
   /**
-   * (7) 타임세팅 저장 (생성/업데이트)
+   * (8) 타임세팅 저장 (생성/업데이트)
    */
   const handleSaveTimeSettings = async () => {
     // 목표 글쓰기 갯수와 추가 글쓰기 갯수를 합산
@@ -277,7 +304,7 @@ export default function StartProcessPage() {
         </button>
       </div>
 
-      {/* (3) 추가 버튼: "글쓰기 시작", "색인 요청 시작" */}
+      {/* (3) 추가 버튼: "글쓰기 시작", "색인 요청 시작", 그리고 신규 "글쓰기만" 버튼 */}
       <div style={{ marginBottom: "20px" }}>
         <button
           onClick={handleStartWrite}
@@ -307,6 +334,21 @@ export default function StartProcessPage() {
           }}
         >
           색인 요청 시작
+        </button>
+
+        {/* 신규 "글쓰기만" 버튼 */}
+        <button
+          onClick={handleWriteOnly}
+          disabled={isRunning}
+          style={{
+            padding: "10px 20px",
+            backgroundColor: isRunning ? "#bdc3c7" : "#e67e22",
+            color: "#fff",
+            borderRadius: "5px",
+            cursor: isRunning ? "not-allowed" : "pointer",
+          }}
+        >
+          글쓰기만
         </button>
       </div>
 
