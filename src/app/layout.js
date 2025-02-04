@@ -54,6 +54,7 @@ export default function RootLayout({ children }) {
                   워프목록
                 </Link>
               </li>
+              {/* 기존 completed 메뉴 외에 새롭게 추가한 first-completed 메뉴 */}
               <li style={{ marginBottom: "15px" }}>
                 <Link
                   href="/completed"
@@ -70,6 +71,22 @@ export default function RootLayout({ children }) {
                   완료키워드
                 </Link>
               </li>
+              {/* <li style={{ marginBottom: "15px" }}>
+                <Link
+                  href="/first-completed"
+                  style={{
+                    textDecoration: "none",
+                    color: "#ecf0f1",
+                    display: "block",
+                    padding: "10px 15px",
+                    borderRadius: "5px",
+                    backgroundColor: "#34495e",
+                    textAlign: "center",
+                  }}
+                >
+                  우선 완료키워드
+                </Link>
+              </li> */}
               <li style={{ marginBottom: "15px" }}>
                 <Link
                   href="/naver-check"

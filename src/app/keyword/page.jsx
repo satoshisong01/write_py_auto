@@ -4,11 +4,11 @@ import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 
 export default function KeywordPage() {
-  const [keywords, setKeywords] = useState([]); // 키워드 목록 상태
+  const [keywords, setKeywords] = useState([]); // DB에 저장된 키워드 목록 상태
   const [currentPage, setCurrentPage] = useState(1); // 현재 페이지 상태
-  const [uploadedKeywords, setUploadedKeywords] = useState([]); // 임시 업로드된 키워드 상태
+  const [uploadedKeywords, setUploadedKeywords] = useState([]); // 엑셀에서 읽어온 키워드 목록 (임시)
   const [message, setMessage] = useState(""); // 사용자 메시지 상태
-  const [selectedItems, setSelectedItems] = useState(new Set()); // 체크박스 상태
+  const [selectedItems, setSelectedItems] = useState(new Set()); // 체크박스 선택 상태
   const itemsPerPage = 100; // 페이지당 아이템 수
 
   useEffect(() => {
@@ -26,17 +26,25 @@ export default function KeywordPage() {
         const sheetName = workbook.SheetNames[0]; // 첫 번째 시트를 사용
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        const parsedKeywords = jsonData.flat().filter((item) => item); // 배열 평탄화 및 빈 값 제거
+        // 각 행을 { keyword, first_keyword } 객체로 변환
+        // A열: keyword, B열: "O"이면 first_keyword: "O", 아니면 null
+        const parsedKeywords = jsonData
+          .map((row) => ({
+            keyword: row[0],
+            first_keyword: row[1] === "O" ? "O" : null,
+          }))
+          .filter((item) => item.keyword); // keyword가 있는 행만 사용
 
-        setUploadedKeywords(parsedKeywords); // 화면에는 표시 안 함
-        setMessage(`총 ${parsedKeywords.length}개의 키워드가 불러와졌습니다.`); // 메시지 상태 설정
+        setUploadedKeywords(parsedKeywords); // 서버에 저장할 데이터를 임시 상태에 저장
+        setMessage(`총 ${parsedKeywords.length}개의 키워드가 불러와졌습니다.`);
       };
       reader.readAsArrayBuffer(file);
     } else {
-      setMessage("파일을 선택해주세요."); // 파일이 없을 경우 메시지 설정
+      setMessage("파일을 선택해주세요.");
     }
   };
 
+  // DB에 저장하는 핸들러
   const handleSaveToDB = () => {
     if (uploadedKeywords.length === 0) {
       alert("저장할 키워드가 없습니다.");
@@ -48,13 +56,14 @@ export default function KeywordPage() {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ keywords: uploadedKeywords }), // 업로드된 키워드 전송
+      // keyword와 first_keyword가 모두 포함된 데이터를 전송
+      body: JSON.stringify({ keywords: uploadedKeywords }),
     })
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
           alert("데이터가 성공적으로 저장되었습니다!");
-          fetchKeywordsFromDB(); // 저장 후 키워드 재조회
+          fetchKeywordsFromDB(); // 저장 후 DB 재조회
         } else {
           console.error("Failed to save data:", data.message);
         }
@@ -64,18 +73,20 @@ export default function KeywordPage() {
       });
   };
 
+  // DB에서 키워드 목록을 가져오는 함수
   const fetchKeywordsFromDB = () => {
     fetch("/api/keywords/fetch")
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          setKeywords(data.data); // 저장된 키워드 상태에 설정
+          setKeywords(data.data);
         } else {
           console.error("Failed to fetch keywords");
         }
       });
   };
 
+  // 선택된 항목 삭제 핸들러
   const handleDeleteSelected = () => {
     if (selectedItems.size === 0) {
       alert("삭제할 항목을 선택해주세요.");
@@ -93,6 +104,7 @@ export default function KeywordPage() {
     });
   };
 
+  // 개별 체크박스 상태 토글
   const handleCheckboxChange = (id) => {
     const updatedSelectedItems = new Set(selectedItems);
     if (updatedSelectedItems.has(id)) {
@@ -103,6 +115,7 @@ export default function KeywordPage() {
     setSelectedItems(updatedSelectedItems);
   };
 
+  // 전체 선택 체크박스 핸들러
   const handleSelectAll = (e) => {
     if (e.target.checked) {
       const allIds = keywords.map((item) => item.id);
@@ -112,7 +125,7 @@ export default function KeywordPage() {
     }
   };
 
-  // 페이지네이션용 데이터
+  // 페이지네이션용 현재 페이지 데이터
   const currentKeywords = keywords.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -126,7 +139,6 @@ export default function KeywordPage() {
   return (
     <div style={{ padding: "20px" }}>
       <h1 style={{ marginBottom: "10px" }}>키워드 목록</h1>
-
       {/* 총 데이터 개수 표시 */}
       <div style={{ marginBottom: "10px", fontWeight: "bold", color: "#333" }}>
         사용 가능 키워드 개수: {keywords.length}개
@@ -203,6 +215,9 @@ export default function KeywordPage() {
             </th>
             <th style={{ border: "1px solid #ddd", padding: "8px" }}>#</th>
             <th style={{ border: "1px solid #ddd", padding: "8px" }}>키워드</th>
+            <th style={{ border: "1px solid #ddd", padding: "8px" }}>
+              First Keyword
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -219,7 +234,10 @@ export default function KeywordPage() {
                 {(currentPage - 1) * itemsPerPage + index + 1}
               </td>
               <td style={{ border: "1px solid #ddd", padding: "8px" }}>
-                {item.keyword} {/* 객체의 keyword 필드를 렌더링 */}
+                {item.keyword}
+              </td>
+              <td style={{ border: "1px solid #ddd", padding: "8px" }}>
+                {item.first_keyword || "-"}
               </td>
             </tr>
           ))}
