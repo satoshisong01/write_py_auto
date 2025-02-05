@@ -148,7 +148,7 @@ export default function StartProcessPage() {
 
     try {
       // 추후 실제 호출할 API 엔드포인트로 변경하시면 됩니다.
-      const response = await fetch("/api/start-write", { method: "POST" });
+      const response = await fetch("/api/start-write-only", { method: "POST" });
       const result = await response.json();
 
       if (!response.ok || !result.success) {
