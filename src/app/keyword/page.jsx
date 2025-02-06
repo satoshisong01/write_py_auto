@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import * as XLSX from "xlsx";
 
 export default function KeywordPage() {
@@ -9,6 +9,10 @@ export default function KeywordPage() {
   const [uploadedKeywords, setUploadedKeywords] = useState([]); // 엑셀에서 읽어온 키워드 목록 (임시)
   const [message, setMessage] = useState(""); // 사용자 메시지 상태
   const [selectedItems, setSelectedItems] = useState(new Set()); // 체크박스 선택 상태
+  const [sortConfig, setSortConfig] = useState({
+    key: null,
+    direction: "ascending",
+  });
   const itemsPerPage = 100; // 페이지당 아이템 수
 
   useEffect(() => {
@@ -32,6 +36,8 @@ export default function KeywordPage() {
           .map((row) => ({
             keyword: row[0],
             first_keyword: row[1] === "O" ? "O" : null,
+            // DB나 목록에서 고유한 값을 위해 id 추가 (실제 환경에 맞게 변경하세요)
+            id: row[0] + Math.random().toString(36).substr(2, 9),
           }))
           .filter((item) => item.keyword); // keyword가 있는 행만 사용
 
@@ -125,8 +131,47 @@ export default function KeywordPage() {
     }
   };
 
+  // 정렬 핸들러
+  const handleSort = (key) => {
+    let direction = "ascending";
+    if (sortConfig.key === key && sortConfig.direction === "ascending") {
+      direction = "descending";
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // 정렬된 키워드 목록 (페이지네이션 전에 정렬)
+  const sortedKeywords = useMemo(() => {
+    let sortableItems = [...keywords];
+    if (sortConfig.key !== null) {
+      sortableItems.sort((a, b) => {
+        let aVal = a[sortConfig.key];
+        let bVal = b[sortConfig.key];
+
+        // null 또는 undefined를 빈 문자열로 취급
+        if (aVal === null || aVal === undefined) aVal = "";
+        if (bVal === null || bVal === undefined) bVal = "";
+
+        // 문자열인 경우 대소문자 구분 없이 비교
+        if (typeof aVal === "string" && typeof bVal === "string") {
+          aVal = aVal.toLowerCase();
+          bVal = bVal.toLowerCase();
+        }
+
+        if (aVal < bVal) {
+          return sortConfig.direction === "ascending" ? -1 : 1;
+        }
+        if (aVal > bVal) {
+          return sortConfig.direction === "ascending" ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [keywords, sortConfig]);
+
   // 페이지네이션용 현재 페이지 데이터
-  const currentKeywords = keywords.slice(
+  const currentKeywords = sortedKeywords.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -134,6 +179,19 @@ export default function KeywordPage() {
   // 페이지 변경 핸들러
   const handlePageChange = (page) => {
     setCurrentPage(page);
+  };
+
+  // 페이지네이션 관련 변수들
+  const totalPages = Math.ceil(sortedKeywords.length / itemsPerPage);
+  const visiblePageCount = 10;
+  const blockStart =
+    Math.floor((currentPage - 1) / visiblePageCount) * visiblePageCount + 1;
+  const blockEnd = Math.min(blockStart + visiblePageCount - 1, totalPages);
+
+  // 헬퍼: 정렬 아이콘 표시
+  const renderSortIcon = (key) => {
+    if (sortConfig.key !== key) return null;
+    return sortConfig.direction === "ascending" ? " ▲" : " ▼";
   };
 
   return (
@@ -188,9 +246,7 @@ export default function KeywordPage() {
             backgroundColor: "red",
             borderRadius: "5px",
             cursor: selectedItems.size > 0 ? "pointer" : "not-allowed",
-            marginBottom: "10px",
-            marginRight: "10px",
-            marginLeft: "10px",
+            margin: "10px",
           }}
         >
           선택 삭제
@@ -210,13 +266,40 @@ export default function KeywordPage() {
               <input
                 type="checkbox"
                 onChange={handleSelectAll}
-                checked={selectedItems.size === keywords.length}
+                checked={
+                  selectedItems.size === keywords.length && keywords.length > 0
+                }
               />
             </th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>#</th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>키워드</th>
-            <th style={{ border: "1px solid #ddd", padding: "8px" }}>
-              First Keyword
+            <th
+              style={{
+                border: "1px solid #ddd",
+                padding: "8px",
+                cursor: "pointer",
+              }}
+              onClick={() => handleSort("id")}
+            >
+              # {renderSortIcon("id")}
+            </th>
+            <th
+              style={{
+                border: "1px solid #ddd",
+                padding: "8px",
+                cursor: "pointer",
+              }}
+              onClick={() => handleSort("keyword")}
+            >
+              키워드 {renderSortIcon("keyword")}
+            </th>
+            <th
+              style={{
+                border: "1px solid #ddd",
+                padding: "8px",
+                cursor: "pointer",
+              }}
+              onClick={() => handleSort("first_keyword")}
+            >
+              First Keyword {renderSortIcon("first_keyword")}
             </th>
           </tr>
         </thead>
@@ -243,26 +326,96 @@ export default function KeywordPage() {
           ))}
         </tbody>
       </table>
-      <div style={{ marginTop: "20px" }}>
+      {/* 페이지네이션 */}
+      <div
+        style={{
+          marginTop: "20px",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        {/* 첫 페이지 버튼 */}
+        <button
+          onClick={() => handlePageChange(1)}
+          disabled={currentPage === 1}
+          style={{
+            margin: "0 5px",
+            padding: "5px 10px",
+            border: "1px solid #ddd",
+            borderRadius: "5px",
+            backgroundColor: currentPage === 1 ? "#ecf0f1" : "#fff",
+            cursor: currentPage === 1 ? "not-allowed" : "pointer",
+          }}
+        >
+          {"<<"}
+        </button>
+        {/* 이전 블록 버튼 */}
+        <button
+          onClick={() => handlePageChange(blockStart - 1)}
+          disabled={blockStart === 1}
+          style={{
+            margin: "0 5px",
+            padding: "5px 10px",
+            border: "1px solid #ddd",
+            borderRadius: "5px",
+            backgroundColor: blockStart === 1 ? "#ecf0f1" : "#fff",
+            cursor: blockStart === 1 ? "not-allowed" : "pointer",
+          }}
+        >
+          {"<"}
+        </button>
+        {/* 페이지 번호 버튼 */}
         {Array.from(
-          { length: Math.ceil(keywords.length / itemsPerPage) },
-          (_, i) => (
-            <button
-              key={i}
-              onClick={() => handlePageChange(i + 1)}
-              style={{
-                padding: "10px",
-                margin: "0 5px",
-                backgroundColor: i + 1 === currentPage ? "#2ecc71" : "#ecf0f1",
-                border: "1px solid #ddd",
-                borderRadius: "5px",
-                cursor: "pointer",
-              }}
-            >
-              {i + 1}
-            </button>
-          )
-        )}
+          { length: blockEnd - blockStart + 1 },
+          (_, i) => blockStart + i
+        ).map((page) => (
+          <button
+            key={page}
+            onClick={() => handlePageChange(page)}
+            style={{
+              padding: "5px 10px",
+              margin: "0 5px",
+              backgroundColor: page === currentPage ? "#2ecc71" : "#ecf0f1",
+              border: "1px solid #ddd",
+              borderRadius: "5px",
+              cursor: "pointer",
+            }}
+          >
+            {page}
+          </button>
+        ))}
+        {/* 다음 블록 버튼 */}
+        <button
+          onClick={() => handlePageChange(blockEnd + 1)}
+          disabled={blockEnd === totalPages}
+          style={{
+            margin: "0 5px",
+            padding: "5px 10px",
+            border: "1px solid #ddd",
+            borderRadius: "5px",
+            backgroundColor: blockEnd === totalPages ? "#ecf0f1" : "#fff",
+            cursor: blockEnd === totalPages ? "not-allowed" : "pointer",
+          }}
+        >
+          {">"}
+        </button>
+        {/* 마지막 페이지 버튼 */}
+        <button
+          onClick={() => handlePageChange(totalPages)}
+          disabled={currentPage === totalPages}
+          style={{
+            margin: "0 5px",
+            padding: "5px 10px",
+            border: "1px solid #ddd",
+            borderRadius: "5px",
+            backgroundColor: currentPage === totalPages ? "#ecf0f1" : "#fff",
+            cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+          }}
+        >
+          {">>"}
+        </button>
       </div>
     </div>
   );
