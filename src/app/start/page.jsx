@@ -223,7 +223,7 @@ export default function StartProcessPage() {
       after_time: afterTime,
       post_count: newPostCount,
       cycle_count: cycleCount,
-      add_count: addCount, // 추가 글쓰기 갯수는 저장 후 초기화
+      add_count: 0, // 추가 글쓰기 갯수는 저장 후 초기화
     };
 
     try {
